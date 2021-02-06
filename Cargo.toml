@@ -1,0 +1,12 @@
+[package]
+name = "radomsko"
+version = "0.1.0"
+authors = ["j39m"]
+edition = "2018"
+
+[[bin]]
+name = "radomsko"
+path = "src/main.rs"
+
+[dependencies]
+home = "0.5.3"
