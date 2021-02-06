@@ -91,6 +91,13 @@ mod tests {
     }
 
     #[test]
+    fn password_store_interface_requires_existing_root() {
+        let err = PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap())
+            .unwrap_err();
+        assert_eq!(err, PasswordStoreInterfaceError::RootNotAccessible);
+    }
+
+    #[test]
     fn path_for_basic() {
         let interface = PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap();
         let path = interface.path_for("hello/there/general/kenobi");
