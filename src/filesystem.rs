@@ -9,8 +9,8 @@ fn default_password_store_root() -> PathBuf {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PasswordStoreInterfaceError {
-    RootNotAccessible,
+pub enum FilesystemError {
+    NotFound,
     PasswordNotResident,
     PasswordLacksGpgExtension,
 }
@@ -22,16 +22,16 @@ pub struct PasswordStoreInterface {
     root: PathBuf,
 }
 
-impl From<std::io::Error> for PasswordStoreInterfaceError {
-    fn from(_err: std::io::Error) -> PasswordStoreInterfaceError {
-        PasswordStoreInterfaceError::RootNotAccessible
+impl From<std::io::Error> for FilesystemError {
+    fn from(_err: std::io::Error) -> FilesystemError {
+        FilesystemError::NotFound
     }
 }
 
 impl PasswordStoreInterface {
     pub fn new(
         configured_root: &str,
-    ) -> Result<PasswordStoreInterface, PasswordStoreInterfaceError> {
+    ) -> Result<PasswordStoreInterface, FilesystemError> {
         let mut root = PathBuf::from(configured_root);
         if configured_root.is_empty() {
             root = default_password_store_root();
@@ -39,7 +39,7 @@ impl PasswordStoreInterface {
 
         let metadata = std::fs::metadata(root.as_path())?;
         if !metadata.is_dir() {
-            return Err(PasswordStoreInterfaceError::RootNotAccessible);
+            return Err(FilesystemError::NotFound);
         }
 
         Ok(PasswordStoreInterface { root: root })
@@ -58,18 +58,18 @@ impl PasswordStoreInterface {
     pub fn symbolic_name_for(
         &self,
         password_path: &Path,
-    ) -> Result<PathBuf, PasswordStoreInterfaceError> {
+    ) -> Result<PathBuf, FilesystemError> {
         match password_path.extension() {
             Some(extension) => match extension.to_str().unwrap() {
                 GPG_EXTENSION => (),
-                _ => return Err(PasswordStoreInterfaceError::PasswordLacksGpgExtension),
+                _ => return Err(FilesystemError::PasswordLacksGpgExtension),
             },
-            None => return Err(PasswordStoreInterfaceError::PasswordLacksGpgExtension),
+            None => return Err(FilesystemError::PasswordLacksGpgExtension),
         }
 
         let mut name = match password_path.strip_prefix(&self.root) {
             Ok(rootless) => rootless.to_path_buf(),
-            Err(_) => return Err(PasswordStoreInterfaceError::PasswordNotResident),
+            Err(_) => return Err(FilesystemError::PasswordNotResident),
         };
 
         name.set_extension("");
@@ -94,7 +94,7 @@ mod tests {
     fn password_store_interface_requires_existing_root() {
         let err = PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap())
             .unwrap_err();
-        assert_eq!(err, PasswordStoreInterfaceError::RootNotAccessible);
+        assert_eq!(err, FilesystemError::NotFound);
     }
 
     #[test]
@@ -122,7 +122,7 @@ mod tests {
         let result = interface
             .symbolic_name_for(Path::new("/some/random/dir/hello/there.gpg"))
             .unwrap_err();
-        assert_eq!(result, PasswordStoreInterfaceError::PasswordNotResident);
+        assert_eq!(result, FilesystemError::PasswordNotResident);
     }
 
     #[test]
@@ -133,7 +133,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             result,
-            PasswordStoreInterfaceError::PasswordLacksGpgExtension
+            FilesystemError::PasswordLacksGpgExtension
         );
     }
 
@@ -145,7 +145,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             result,
-            PasswordStoreInterfaceError::PasswordLacksGpgExtension
+            FilesystemError::PasswordLacksGpgExtension
         );
     }
 }
