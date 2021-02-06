@@ -29,9 +29,7 @@ impl From<std::io::Error> for FilesystemError {
 }
 
 impl PasswordStoreInterface {
-    pub fn new(
-        configured_root: &str,
-    ) -> Result<PasswordStoreInterface, FilesystemError> {
+    pub fn new(configured_root: &str) -> Result<PasswordStoreInterface, FilesystemError> {
         let mut root = PathBuf::from(configured_root);
         if configured_root.is_empty() {
             root = default_password_store_root();
@@ -55,10 +53,7 @@ impl PasswordStoreInterface {
     }
 
     // Borrows a `password_path` and returns its symbolic "name."
-    pub fn symbolic_name_for(
-        &self,
-        password_path: &Path,
-    ) -> Result<PathBuf, FilesystemError> {
+    pub fn symbolic_name_for(&self, password_path: &Path) -> Result<PathBuf, FilesystemError> {
         match password_path.extension() {
             Some(extension) => match extension.to_str().unwrap() {
                 GPG_EXTENSION => (),
@@ -90,6 +85,10 @@ mod tests {
         result
     }
 
+    fn password_store_interface() -> PasswordStoreInterface {
+        PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap()
+    }
+
     #[test]
     fn password_store_interface_requires_existing_root() {
         let err = PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap())
@@ -99,8 +98,7 @@ mod tests {
 
     #[test]
     fn path_for_basic() {
-        let interface = PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap();
-        let path = interface.path_for("hello/there/general/kenobi");
+        let path = password_store_interface().path_for("hello/there/general/kenobi");
         assert_eq!(
             path,
             test_data_path("hello/there/general/kenobi.gpg").as_path()
@@ -109,8 +107,7 @@ mod tests {
 
     #[test]
     fn symbolic_name_for_basic() {
-        let interface = PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap();
-        let symbolic_name = interface
+        let symbolic_name = password_store_interface()
             .symbolic_name_for(test_data_path("hello/there.gpg").as_path())
             .unwrap();
         assert_eq!(symbolic_name, Path::new("hello/there"));
@@ -118,8 +115,7 @@ mod tests {
 
     #[test]
     fn symbolic_name_for_rejects_nonresident_passwords() {
-        let interface = PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap();
-        let result = interface
+        let result = password_store_interface()
             .symbolic_name_for(Path::new("/some/random/dir/hello/there.gpg"))
             .unwrap_err();
         assert_eq!(result, FilesystemError::PasswordNotResident);
@@ -127,25 +123,17 @@ mod tests {
 
     #[test]
     fn symbolic_name_for_requires_gpg_extension() {
-        let interface = PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap();
-        let result = interface
+        let result = password_store_interface()
             .symbolic_name_for(test_data_path("blah.txt").as_path())
             .unwrap_err();
-        assert_eq!(
-            result,
-            FilesystemError::PasswordLacksGpgExtension
-        );
+        assert_eq!(result, FilesystemError::PasswordLacksGpgExtension);
     }
 
     #[test]
     fn symbolic_name_for_rejects_files_without_extension() {
-        let interface = PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap();
-        let result = interface
+        let result = password_store_interface()
             .symbolic_name_for(test_data_path("blah").as_path())
             .unwrap_err();
-        assert_eq!(
-            result,
-            FilesystemError::PasswordLacksGpgExtension
-        );
+        assert_eq!(result, FilesystemError::PasswordLacksGpgExtension);
     }
 }
