@@ -9,26 +9,26 @@ fn default_password_store_root() -> PathBuf {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum FilesystemInterfaceError {
+pub enum PasswordStoreInterfaceError {
     NotResident,
     LacksGpgExtension,
 }
 
 // Interacts with the configured root of the password store.
 #[derive(Debug)]
-pub struct FilesystemInterface {
+pub struct PasswordStoreInterface {
     root: PathBuf,
 }
 
-impl FilesystemInterface {
-    pub fn new(configured_root: &str) -> FilesystemInterface {
+impl PasswordStoreInterface {
+    pub fn new(configured_root: &str) -> PasswordStoreInterface {
         if configured_root.is_empty() {
-            return FilesystemInterface {
+            return PasswordStoreInterface {
                 root: default_password_store_root(),
             };
         }
 
-        FilesystemInterface {
+        PasswordStoreInterface {
             root: PathBuf::from(configured_root),
         }
     }
@@ -46,18 +46,18 @@ impl FilesystemInterface {
     pub fn symbolic_name_for(
         &self,
         password_path: &Path,
-    ) -> Result<PathBuf, FilesystemInterfaceError> {
+    ) -> Result<PathBuf, PasswordStoreInterfaceError> {
         match password_path.extension() {
             Some(extension) => match extension.to_str().unwrap() {
                 GPG_EXTENSION => (),
-                _ => return Err(FilesystemInterfaceError::LacksGpgExtension),
+                _ => return Err(PasswordStoreInterfaceError::LacksGpgExtension),
             },
-            None => return Err(FilesystemInterfaceError::LacksGpgExtension),
+            None => return Err(PasswordStoreInterfaceError::LacksGpgExtension),
         }
 
         let mut name = match password_path.strip_prefix(&self.root) {
             Ok(rootless) => rootless.to_path_buf(),
-            Err(_) => return Err(FilesystemInterfaceError::NotResident),
+            Err(_) => return Err(PasswordStoreInterfaceError::NotResident),
         };
 
         name.set_extension("");
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn path_for_basic() {
-        let interface = FilesystemInterface::new("/home/kalvin/.password-store");
+        let interface = PasswordStoreInterface::new("/home/kalvin/.password-store");
         let path = interface.path_for("hello/there/general/kenobi");
         assert_eq!(
             path,
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn symbolic_name_for_basic() {
-        let interface = FilesystemInterface::new("/home/kalvin/.password-store");
+        let interface = PasswordStoreInterface::new("/home/kalvin/.password-store");
         let symbolic_name = interface
             .symbolic_name_for(Path::new("/home/kalvin/.password-store/hello/there.gpg"))
             .unwrap();
@@ -90,28 +90,28 @@ mod tests {
 
     #[test]
     fn symbolic_name_for_rejects_nonresident_passwords() {
-        let interface = FilesystemInterface::new("/home/kalvin/.password-store");
+        let interface = PasswordStoreInterface::new("/home/kalvin/.password-store");
         let result = interface
             .symbolic_name_for(Path::new("/some/random/dir/hello/there.gpg"))
             .unwrap_err();
-        assert_eq!(result, FilesystemInterfaceError::NotResident);
+        assert_eq!(result, PasswordStoreInterfaceError::NotResident);
     }
 
     #[test]
     fn symbolic_name_for_requires_gpg_extension() {
-        let interface = FilesystemInterface::new("/home/kalvin/.password-store");
+        let interface = PasswordStoreInterface::new("/home/kalvin/.password-store");
         let result = interface
             .symbolic_name_for(Path::new("/home/kalvin/.password-store/blah.txt"))
             .unwrap_err();
-        assert_eq!(result, FilesystemInterfaceError::LacksGpgExtension);
+        assert_eq!(result, PasswordStoreInterfaceError::LacksGpgExtension);
     }
 
     #[test]
     fn symbolic_name_for_rejects_files_without_extension() {
-        let interface = FilesystemInterface::new("/home/kalvin/.password-store");
+        let interface = PasswordStoreInterface::new("/home/kalvin/.password-store");
         let result = interface
             .symbolic_name_for(Path::new("/home/kalvin/.password-store/blah"))
             .unwrap_err();
-        assert_eq!(result, FilesystemInterfaceError::LacksGpgExtension);
+        assert_eq!(result, PasswordStoreInterfaceError::LacksGpgExtension);
     }
 }
