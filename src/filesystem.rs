@@ -1,6 +1,8 @@
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 const GPG_EXTENSION: &'static str = "gpg";
+const CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS: u32 = 0o700;
 
 fn default_password_store_root() -> PathBuf {
     let mut path = home::home_dir().unwrap();
@@ -8,9 +10,15 @@ fn default_password_store_root() -> PathBuf {
     path
 }
 
+fn default_cleartext_holder_dir() -> Result<PathBuf, FilesystemError> {
+    let xdg_runtime_dir = std::env::var("XDG_RUNTIME_DIR")?;
+    Ok(PathBuf::from(xdg_runtime_dir.as_str()))
+}
+
 #[derive(Debug, PartialEq)]
 pub enum FilesystemError {
-    NotFound,
+    NotFound,       // generic
+    BadPermissions, // specific to `CleartextHolderInterface`
     PasswordNotResident,
     PasswordLacksGpgExtension,
 }
@@ -22,8 +30,25 @@ pub struct PasswordStoreInterface {
     root: PathBuf,
 }
 
+// Interacts with the quasi-private space that holds cleartext
+// passwords.
+// *    Defaults to using ${XDG_RUNTIME_DIR} if no directory is
+//      specified.
+// *    Requires that backing directory is only accessible to the
+//      calling user.
+#[derive(Debug)]
+pub struct CleartextHolderInterface {
+    root: PathBuf,
+}
+
 impl From<std::io::Error> for FilesystemError {
     fn from(_err: std::io::Error) -> FilesystemError {
+        FilesystemError::NotFound
+    }
+}
+
+impl From<std::env::VarError> for FilesystemError {
+    fn from(_err: std::env::VarError) -> FilesystemError {
         FilesystemError::NotFound
     }
 }
@@ -72,9 +97,48 @@ impl PasswordStoreInterface {
     }
 }
 
+impl CleartextHolderInterface {
+    pub fn new(configured_root: &str) -> Result<CleartextHolderInterface, FilesystemError> {
+        let mut root = PathBuf::from(configured_root);
+        if configured_root.is_empty() {
+            root = default_cleartext_holder_dir()?;
+        }
+
+        let metadata = std::fs::metadata(root.as_path())?;
+        if !metadata.is_dir() {
+            return Err(FilesystemError::NotFound);
+        } else if metadata.permissions().mode() & 0o777 != CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS
+        {
+            return Err(FilesystemError::BadPermissions);
+        }
+
+        Ok(CleartextHolderInterface { root: root })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const CLEARTEXT_DIRECTORY_BAD_PERMISSIONS: u32 = 0o740;
+    const CLEARTEXT_DIRECTORY_PREFIX: &'static str = "cleartext-holder-fixture-";
+
+    struct CleartextHolderFixture {
+        interface: CleartextHolderInterface,
+        backing_dir: tempfile::TempDir,
+    }
+
+    impl CleartextHolderFixture {
+        pub fn new(
+            interface: CleartextHolderInterface,
+            backing_dir: tempfile::TempDir,
+        ) -> CleartextHolderFixture {
+            CleartextHolderFixture {
+                interface: interface,
+                backing_dir: backing_dir,
+            }
+        }
+    }
 
     fn test_data_path(path: &str) -> PathBuf {
         let mut result = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -87,6 +151,20 @@ mod tests {
 
     fn password_store_interface() -> PasswordStoreInterface {
         PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap()
+    }
+
+    fn cleartext_holder_fixture() -> CleartextHolderFixture {
+        let tmp_dir = tempfile::Builder::new()
+            .prefix(CLEARTEXT_DIRECTORY_PREFIX)
+            .tempdir_in(test_data_path("").to_str().unwrap())
+            .unwrap();
+        std::fs::set_permissions(tmp_dir.as_ref(), std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        let klaus = PathBuf::from(tmp_dir.as_ref());
+        CleartextHolderFixture::new(
+            CleartextHolderInterface::new(tmp_dir.as_ref().to_str().unwrap()).unwrap(),
+            tmp_dir,
+        )
     }
 
     #[test]
@@ -135,5 +213,37 @@ mod tests {
             .symbolic_name_for(test_data_path("blah").as_path())
             .unwrap_err();
         assert_eq!(result, FilesystemError::PasswordLacksGpgExtension);
+    }
+
+    #[test]
+    fn cleartext_holder_requires_directory() {
+        let err = CleartextHolderInterface::new(test_data_path("nonexistent").to_str().unwrap())
+            .unwrap_err();
+        assert_eq!(err, FilesystemError::NotFound);
+    }
+
+    #[test]
+    fn cleartext_holder_wants_directory_permissions() {
+        let tmp_dir = tempfile::Builder::new()
+            .prefix(CLEARTEXT_DIRECTORY_PREFIX)
+            .tempdir_in(test_data_path("").to_str().unwrap())
+            .unwrap();
+        let mut permissions = std::fs::metadata(tmp_dir.as_ref()).unwrap().permissions();
+        permissions.set_mode(CLEARTEXT_DIRECTORY_BAD_PERMISSIONS);
+
+        let err = CleartextHolderInterface::new(tmp_dir.as_ref().to_str().unwrap()).unwrap_err();
+        assert_eq!(err, FilesystemError::BadPermissions);
+    }
+
+    #[test]
+    fn cleartext_holder_basic() {
+        let fixture = cleartext_holder_fixture();
+        let permissions = std::fs::metadata(fixture.backing_dir.as_ref())
+            .unwrap()
+            .permissions();
+        assert_eq!(
+            permissions.mode() & 0o777,
+            CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS
+        );
     }
 }
