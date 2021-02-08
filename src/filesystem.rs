@@ -4,17 +4,6 @@ use std::path::{Path, PathBuf};
 const GPG_EXTENSION: &'static str = "gpg";
 const CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS: u32 = 0o700;
 
-fn default_password_store_root() -> PathBuf {
-    let mut path = home::home_dir().unwrap();
-    path.push(".password-store");
-    path
-}
-
-fn default_cleartext_holder_dir() -> Result<PathBuf, FilesystemError> {
-    let xdg_runtime_dir = std::env::var("XDG_RUNTIME_DIR")?;
-    Ok(PathBuf::from(xdg_runtime_dir.as_str()))
-}
-
 #[derive(Debug, PartialEq)]
 pub enum FilesystemError {
     NotFound,       // generic
@@ -51,6 +40,17 @@ impl From<std::env::VarError> for FilesystemError {
     fn from(_err: std::env::VarError) -> FilesystemError {
         FilesystemError::NotFound
     }
+}
+
+fn default_password_store_root() -> PathBuf {
+    let mut path = home::home_dir().unwrap();
+    path.push(".password-store");
+    path
+}
+
+fn default_cleartext_holder_dir() -> Result<PathBuf, FilesystemError> {
+    let xdg_runtime_dir = std::env::var("XDG_RUNTIME_DIR")?;
+    Ok(PathBuf::from(xdg_runtime_dir.as_str()))
 }
 
 // Helper filter for `PasswordStoreInterface::draw_tree()`.
