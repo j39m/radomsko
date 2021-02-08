@@ -53,6 +53,28 @@ impl From<std::env::VarError> for FilesystemError {
     }
 }
 
+// Helper filter for `PasswordStoreInterface::draw_tree()`.
+fn is_gpg_file(path: &PathBuf) -> bool {
+    let metadata = match path.metadata() {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    metadata.file_type().is_file() && path.to_str().unwrap().ends_with(GPG_EXTENSION)
+}
+
+// Helper filter for `PasswordStoreInterface::draw_tree()`.
+fn dirent_matches_search_term(path: &PathBuf, search_term: &str) -> bool {
+    path.to_str().unwrap().contains(search_term)
+}
+
+// Helper filter-map for `PasswordStoreInterface::draw_tree()`.
+fn ok_dirent_as_pathbuf(entry: Result<walkdir::DirEntry, walkdir::Error>) -> Option<PathBuf> {
+    match entry {
+        Ok(dir_entry) => Some(dir_entry.into_path()),
+        Err(_) => None,
+    }
+}
+
 impl PasswordStoreInterface {
     pub fn new(configured_root: &str) -> Result<PasswordStoreInterface, FilesystemError> {
         let mut root = PathBuf::from(configured_root);
@@ -71,29 +93,167 @@ impl PasswordStoreInterface {
     // Borrows a named `password` and returns the underlying path in the
     // password store.
     pub fn path_for(&self, password: &str) -> PathBuf {
-        let mut path = self.root.clone();
-        path.push(password);
-        path.set_extension(GPG_EXTENSION);
-        path
+        self.path_for_impl(password, true)
+    }
+
+    // Borrows a relative `path` and returns the underlying path in the
+    // password store.
+    fn path_for_impl(&self, path: &str, add_gpg_extension: bool) -> PathBuf {
+        let mut result = self.root.clone();
+        result.push(path);
+
+        if add_gpg_extension {
+            result.set_extension(GPG_EXTENSION);
+        }
+        result
     }
 
     // Borrows a `password_path` and returns its symbolic "name."
-    pub fn symbolic_name_for(&self, password_path: &Path) -> Result<PathBuf, FilesystemError> {
-        match password_path.extension() {
-            Some(extension) => match extension.to_str().unwrap() {
-                GPG_EXTENSION => (),
-                _ => return Err(FilesystemError::PasswordLacksGpgExtension),
-            },
-            None => return Err(FilesystemError::PasswordLacksGpgExtension),
+    fn symbolic_name_for(&self, password_path: &Path) -> PathBuf {
+        assert!(password_path.is_absolute());
+        assert!(password_path.starts_with(&self.root));
+
+        let mut name = password_path
+            .strip_prefix(&self.root)
+            .unwrap()
+            .to_path_buf();
+        name.set_extension("");
+        name
+    }
+
+    // Aids `draw_tree()` when a `subdirectory` is specified.
+    //
+    // Returns a sorted Vec of passwords in the `subdirectory`.
+    fn walk_tree_for_subdirectory(
+        &self,
+        subdirectory: &str,
+    ) -> Result<Vec<PathBuf>, FilesystemError> {
+        let path = self.path_for_impl(subdirectory, false);
+        if !std::fs::metadata(&path)?.is_dir() {
+            return Err(FilesystemError::NotFound);
         }
 
-        let mut name = match password_path.strip_prefix(&self.root) {
-            Ok(rootless) => rootless.to_path_buf(),
-            Err(_) => return Err(FilesystemError::PasswordNotResident),
-        };
+        let mut result: Vec<PathBuf> = walkdir::WalkDir::new(path)
+            .into_iter()
+            .filter_map(|e| ok_dirent_as_pathbuf(e))
+            .filter(|e| is_gpg_file(e))
+            .collect();
+        result.sort();
+        Ok(result)
+    }
 
-        name.set_extension("");
-        Ok(name)
+    // Aids `draw_tree()` when a `search_term` is specified.
+    //
+    // Returns a sorted Vec of passwords matching `search_term`.
+    fn walk_tree_for_search_term(&self, search_term: &str) -> Vec<PathBuf> {
+        let mut result: Vec<PathBuf> = walkdir::WalkDir::new(&self.root)
+            .into_iter()
+            .filter_map(|e| ok_dirent_as_pathbuf(e))
+            .filter(|e| is_gpg_file(e) && dirent_matches_search_term(e, search_term))
+            .collect();
+        result.sort();
+        result
+    }
+
+    // Aids `draw_tree()`.
+    //
+    // Returns a sorted Vec of all passwords in the password store.
+    fn walk_tree(&self) -> Vec<PathBuf> {
+        let mut result: Vec<PathBuf> = walkdir::WalkDir::new(&self.root)
+            .into_iter()
+            .filter_map(|e| ok_dirent_as_pathbuf(e))
+            .filter(|e| is_gpg_file(e))
+            .collect();
+        result.sort();
+        result
+    }
+
+    // Aids `draw_tree()` by laying out one branch of the tree.
+    //
+    // Accepts the `previous` password drawn in the tree and the
+    // `current` password to draw.
+    fn draw_tree_branch(&self, previous: &Path, current: &Path) -> Vec<String> {
+        let symbolic_previous = self.symbolic_name_for(previous);
+        let symbolic_current = self.symbolic_name_for(current);
+
+        let mut previous_components = symbolic_previous.iter();
+        let mut current_components = symbolic_current.iter();
+        let mut indent: usize = 0;
+
+        let mut result: Vec<String> = Vec::new();
+        let mut previous_match: Option<&std::ffi::OsStr> = previous_components.next();
+        let mut current_match: Option<&std::ffi::OsStr> = current_components.next();
+
+        while previous_match.is_some()
+            && current_match.is_some()
+            && previous_match.unwrap() == current_match.unwrap()
+        {
+            previous_match = previous_components.next();
+            current_match = current_components.next();
+            indent += 1;
+        }
+
+        result.push(format!(
+            "{}*   {}",
+            "    ".repeat(indent),
+            current_match.unwrap().to_str().unwrap()
+        ));
+        for remainder in current_components {
+            indent += 1;
+            result.push(format!(
+                "{}*   {}",
+                "    ".repeat(indent),
+                remainder.to_str().unwrap()
+            ));
+        }
+        result
+    }
+
+    // Aids `draw_tree()` by laying out the actual tree.
+    fn draw_tree_impl(&self, tree: Vec<PathBuf>) -> String {
+        if tree.len() == 0 {
+            return "".to_owned();
+        }
+        let mut result: Vec<String> = Vec::new();
+        let mut prev = self.root.as_path();
+
+        for password in tree.iter() {
+            result.extend(self.draw_tree_branch(prev, password));
+            prev = password;
+        }
+
+        result.join("\n")
+    }
+
+    // Returns the human-readable string representation of the password
+    // store, drawn as a tree.
+    //
+    // Arguments:
+    // *    `subdirectory` - if nonempty, restricts return value to
+    //          branches under relative path `subdirectory`.
+    // *    `search_term` - if nonempty, restricts return value to
+    //          branches that match `search_term`.
+    //
+    // `subdirectory` is used with the "show" command while
+    // `search_term` is used with the "find" command. Therefore, these
+    // arguments are mutually exclusive.
+    pub fn draw_tree(
+        &self,
+        subdirectory: &str,
+        search_term: &str,
+    ) -> Result<String, FilesystemError> {
+        assert!(!(!subdirectory.is_empty() && !search_term.is_empty()));
+
+        let tree: Vec<PathBuf>;
+        if !subdirectory.is_empty() {
+            tree = self.walk_tree_for_subdirectory(subdirectory)?;
+        } else if !search_term.is_empty() {
+            tree = self.walk_tree_for_search_term(search_term);
+        } else {
+            tree = self.walk_tree();
+        }
+
+        Ok(self.draw_tree_impl(tree))
     }
 }
 
@@ -160,7 +320,6 @@ mod tests {
             .unwrap();
         std::fs::set_permissions(tmp_dir.as_ref(), std::fs::Permissions::from_mode(0o700)).unwrap();
 
-        let klaus = PathBuf::from(tmp_dir.as_ref());
         CleartextHolderFixture::new(
             CleartextHolderInterface::new(tmp_dir.as_ref().to_str().unwrap()).unwrap(),
             tmp_dir,
@@ -184,35 +343,9 @@ mod tests {
     }
 
     #[test]
-    fn symbolic_name_for_basic() {
-        let symbolic_name = password_store_interface()
-            .symbolic_name_for(test_data_path("hello/there.gpg").as_path())
-            .unwrap();
-        assert_eq!(symbolic_name, Path::new("hello/there"));
-    }
-
-    #[test]
-    fn symbolic_name_for_rejects_nonresident_passwords() {
-        let result = password_store_interface()
-            .symbolic_name_for(Path::new("/some/random/dir/hello/there.gpg"))
-            .unwrap_err();
-        assert_eq!(result, FilesystemError::PasswordNotResident);
-    }
-
-    #[test]
-    fn symbolic_name_for_requires_gpg_extension() {
-        let result = password_store_interface()
-            .symbolic_name_for(test_data_path("blah.txt").as_path())
-            .unwrap_err();
-        assert_eq!(result, FilesystemError::PasswordLacksGpgExtension);
-    }
-
-    #[test]
-    fn symbolic_name_for_rejects_files_without_extension() {
-        let result = password_store_interface()
-            .symbolic_name_for(test_data_path("blah").as_path())
-            .unwrap_err();
-        assert_eq!(result, FilesystemError::PasswordLacksGpgExtension);
+    fn klaus() {
+        let interface = password_store_interface();
+        println!("{}", interface.draw_tree("", "").unwrap());
     }
 
     #[test]
