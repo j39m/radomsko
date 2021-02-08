@@ -149,7 +149,10 @@ impl PasswordStoreInterface {
         let mut result: Vec<PathBuf> = walkdir::WalkDir::new(&self.root)
             .into_iter()
             .filter_map(|e| ok_dirent_as_pathbuf(e))
-            .filter(|e| is_gpg_file(e) && dirent_matches_search_term(e, search_term))
+            .filter(|e| {
+                is_gpg_file(e)
+                    && dirent_matches_search_term(&self.symbolic_name_for(e), search_term)
+            })
             .collect();
         result.sort();
         result
@@ -429,6 +432,21 @@ mod tests {
                 *   b
                     *   c
                 *   d
+        "#}
+        );
+    }
+
+    #[test]
+    fn draw_tree_specifying_search_term() {
+        let interface = password_store_interface("draw-tree-with-folders");
+        assert_eq!(
+            interface.draw_tree("", "a").unwrap(),
+            indoc! {r#"
+            *   a
+            *   b
+                *   a
+            *   d
+                *   a
         "#}
         );
     }
