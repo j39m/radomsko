@@ -380,15 +380,55 @@ mod tests {
         assert_eq!(
             interface.draw_tree("", "").unwrap(),
             indoc! {r#"
-        *   a
-        *   b
             *   a
             *   b
-        *   c
-        *   d
-            *   a
+                *   a
+                *   b
+            *   c
+            *   d
+                *   a
+                *   b
+            *   e
+        "#}
+        );
+    }
+
+    #[test]
+    fn draw_tree_specifying_subdirectory() {
+        let interface = password_store_interface("draw-tree-with-folders");
+        assert_eq!(
+            interface.draw_tree("b", "").unwrap(),
+            indoc! {r#"
             *   b
-        *   e
+                *   a
+                *   b
+        "#}
+        );
+    }
+
+    #[test]
+    fn draw_tree_specifying_subsubdirectory() {
+        let interface = password_store_interface("draw-tree-with-embedded-folders");
+        assert_eq!(
+            interface.draw_tree("a/b", "").unwrap(),
+            indoc! {r#"
+            *   a
+                *   b
+                    *   c
+        "#}
+        );
+    }
+
+    #[test]
+    fn draw_tree_specifying_subdirectory_with_deeper_subdirectory() {
+        let interface = password_store_interface("draw-tree-with-embedded-folders");
+        assert_eq!(
+            interface.draw_tree("a", "").unwrap(),
+            indoc! {r#"
+            *   a
+                *   b
+                    *   c
+                *   d
         "#}
         );
     }
