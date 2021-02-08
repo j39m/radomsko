@@ -221,6 +221,7 @@ impl PasswordStoreInterface {
             result.extend(self.draw_tree_branch(prev, password));
             prev = password;
         }
+        result.push("".to_owned());
 
         result.join("\n")
     }
@@ -279,6 +280,7 @@ impl CleartextHolderInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     const CLEARTEXT_DIRECTORY_BAD_PERMISSIONS: u32 = 0o740;
     const CLEARTEXT_DIRECTORY_PREFIX: &'static str = "cleartext-holder-fixture-";
@@ -309,8 +311,11 @@ mod tests {
         result
     }
 
-    fn password_store_interface() -> PasswordStoreInterface {
-        PasswordStoreInterface::new(test_data_path("").to_str().unwrap()).unwrap()
+    // `PasswordStoreInterface::path_for()` doesn't need a functional
+    // backing directory to be tested, so `subdir` can be blank in
+    // such test cases.
+    fn password_store_interface(subdir: &str) -> PasswordStoreInterface {
+        PasswordStoreInterface::new(test_data_path(subdir).to_str().unwrap()).unwrap()
     }
 
     fn cleartext_holder_fixture() -> CleartextHolderFixture {
@@ -335,7 +340,7 @@ mod tests {
 
     #[test]
     fn path_for_basic() {
-        let path = password_store_interface().path_for("hello/there/general/kenobi");
+        let path = password_store_interface("").path_for("hello/there/general/kenobi");
         assert_eq!(
             path,
             test_data_path("hello/there/general/kenobi.gpg").as_path()
@@ -343,9 +348,49 @@ mod tests {
     }
 
     #[test]
-    fn klaus() {
-        let interface = password_store_interface();
-        println!("{}", interface.draw_tree("", "").unwrap());
+    fn draw_tree_with_embedded_folders() {
+        let interface = password_store_interface("draw-tree-with-embedded-folders");
+        assert_eq!(
+            interface.draw_tree("", "").unwrap(),
+            indoc! {r#"
+        *   a
+            *   b
+                *   c
+            *   d
+        *   e
+        "#}
+        );
+    }
+
+    #[test]
+    fn draw_tree_with_files() {
+        let interface = password_store_interface("draw-tree-with-files");
+        assert_eq!(
+            interface.draw_tree("", "").unwrap(),
+            indoc! {r#"
+        *   a
+        *   b
+        "#}
+        );
+    }
+
+    #[test]
+    fn draw_tree_with_folders() {
+        let interface = password_store_interface("draw-tree-with-folders");
+        assert_eq!(
+            interface.draw_tree("", "").unwrap(),
+            indoc! {r#"
+        *   a
+        *   b
+            *   a
+            *   b
+        *   c
+        *   d
+            *   a
+            *   b
+        *   e
+        "#}
+        );
     }
 
     #[test]
