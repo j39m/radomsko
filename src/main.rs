@@ -4,24 +4,63 @@ mod filesystem;
 use clap::{App, AppSettings, Arg};
 
 use crate::errors::RadomskoError;
+use crate::filesystem::*;
 
 fn subcommand_not_implemented() {
     eprintln!("This subcommand is not implemented.");
     std::process::exit(1);
 }
 
-fn subcommand_find(search_term: &str) -> Result<(), RadomskoError> {
-    let interface = filesystem::PasswordStoreInterface::new("", true)?;
-    Ok(println!("{}", interface.draw_tree("", search_term)?))
+struct CommandRunner {
+    password_store: PasswordStoreInterface,
 }
 
-fn main_impl() -> Result<(), RadomskoError> {
+impl CommandRunner {
+    pub fn new() -> Result<CommandRunner, RadomskoError> {
+        Ok(CommandRunner {
+            password_store: PasswordStoreInterface::new("", true)?,
+        })
+    }
+
+    pub fn find(&self, search_term: &str) -> Result<(), RadomskoError> {
+        Ok(println!(
+            "{}",
+            self.password_store.draw_tree("", search_term)?
+        ))
+    }
+
+    pub fn show(&self, target: &str, clip: bool) -> Result<(), RadomskoError> {
+        match self.password_store.draw_tree(target, "") {
+            Ok(render) => {
+                println!("{}", render);
+                return Ok(());
+            }
+            Err(_) => (),
+        }
+        Ok(subcommand_not_implemented())
+    }
+}
+
+pub fn main_impl() -> Result<(), RadomskoError> {
     let matches = App::new("radomsko")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .about("interacts with your password store")
         .version("0.1.0")
         .author("j39m")
-        .subcommand(App::new("show").about("decrypts passwords"))
+        .subcommand(
+            App::new("show")
+                .about("decrypts passwords (or shows subdirectories)")
+                .arg(
+                    Arg::with_name("target")
+                        .help("password (or subdirectory)")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("clip")
+                        .help("sends cleartext to clipboard")
+                        .short("c"),
+                ),
+        )
         .subcommand(App::new("edit").about("edits passwords"))
         .subcommand(
             App::new("find")
@@ -30,10 +69,17 @@ fn main_impl() -> Result<(), RadomskoError> {
         )
         .get_matches();
 
+    let command_runner = CommandRunner::new()?;
     match matches.subcommand_name() {
-        Some("show") => Ok(subcommand_not_implemented()),
+        Some("show") => {
+            let submatches = matches.subcommand_matches("show").unwrap();
+            Ok(command_runner.show(
+                submatches.value_of("target").unwrap(),
+                submatches.is_present("clip"),
+            )?)
+        }
         Some("edit") => Ok(subcommand_not_implemented()),
-        Some("find") => Ok(subcommand_find(
+        Some("find") => Ok(command_runner.find(
             matches
                 .subcommand_matches("find")
                 .unwrap()
