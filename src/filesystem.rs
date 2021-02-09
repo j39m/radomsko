@@ -3,16 +3,10 @@ use std::path::{Path, PathBuf};
 
 use colorful::Colorful;
 
+use crate::errors::RadomskoError;
+
 const GPG_EXTENSION: &'static str = "gpg";
 const CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS: u32 = 0o700;
-
-#[derive(Debug, PartialEq)]
-pub enum FilesystemError {
-    NotFound,       // generic
-    BadPermissions, // specific to `CleartextHolderInterface`
-    PasswordNotResident,
-    PasswordLacksGpgExtension,
-}
 
 // Interacts with the configured root of the password store.
 // `root` must be readable at time of instantiation.
@@ -33,25 +27,13 @@ pub struct CleartextHolderInterface {
     root: PathBuf,
 }
 
-impl From<std::io::Error> for FilesystemError {
-    fn from(_err: std::io::Error) -> FilesystemError {
-        FilesystemError::NotFound
-    }
-}
-
-impl From<std::env::VarError> for FilesystemError {
-    fn from(_err: std::env::VarError) -> FilesystemError {
-        FilesystemError::NotFound
-    }
-}
-
 fn default_password_store_root() -> PathBuf {
     let mut path = home::home_dir().unwrap();
     path.push(".password-store");
     path
 }
 
-fn default_cleartext_holder_dir() -> Result<PathBuf, FilesystemError> {
+fn default_cleartext_holder_dir() -> Result<PathBuf, RadomskoError> {
     let xdg_runtime_dir = std::env::var("XDG_RUNTIME_DIR")?;
     Ok(PathBuf::from(xdg_runtime_dir.as_str()))
 }
@@ -102,14 +84,14 @@ impl PasswordStoreInterface {
     pub fn new(
         configured_root: &str,
         colorize_display: bool,
-    ) -> Result<PasswordStoreInterface, FilesystemError> {
+    ) -> Result<PasswordStoreInterface, RadomskoError> {
         let root = match configured_root.is_empty() {
             true => default_password_store_root(),
             false => PathBuf::from(configured_root),
         };
 
         if !std::fs::metadata(root.as_path())?.is_dir() {
-            return Err(FilesystemError::NotFound);
+            return Err(RadomskoError::NotFound);
         }
 
         Ok(PasswordStoreInterface {
@@ -155,10 +137,10 @@ impl PasswordStoreInterface {
     fn walk_tree_for_subdirectory(
         &self,
         subdirectory: &str,
-    ) -> Result<Vec<PathBuf>, FilesystemError> {
+    ) -> Result<Vec<PathBuf>, RadomskoError> {
         let path = self.path_for_impl(subdirectory, false);
         if !std::fs::metadata(&path)?.is_dir() {
-            return Err(FilesystemError::NotFound);
+            return Err(RadomskoError::NotFound);
         }
 
         let mut result: Vec<PathBuf> = walkdir::WalkDir::new(path)
@@ -291,7 +273,7 @@ impl PasswordStoreInterface {
         &self,
         subdirectory: &str,
         search_term: &str,
-    ) -> Result<String, FilesystemError> {
+    ) -> Result<String, RadomskoError> {
         assert!(!(!subdirectory.is_empty() && !search_term.is_empty()));
 
         let tree: Vec<PathBuf>;
@@ -308,7 +290,7 @@ impl PasswordStoreInterface {
 }
 
 impl CleartextHolderInterface {
-    pub fn new(configured_root: &str) -> Result<CleartextHolderInterface, FilesystemError> {
+    pub fn new(configured_root: &str) -> Result<CleartextHolderInterface, RadomskoError> {
         let root = match configured_root.is_empty() {
             true => default_cleartext_holder_dir()?,
             false => PathBuf::from(configured_root),
@@ -316,10 +298,10 @@ impl CleartextHolderInterface {
 
         let metadata = std::fs::metadata(root.as_path())?;
         if !metadata.is_dir() {
-            return Err(FilesystemError::NotFound);
+            return Err(RadomskoError::NotFound);
         } else if metadata.permissions().mode() & 0o777 != CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS
         {
-            return Err(FilesystemError::BadPermissions);
+            return Err(RadomskoError::BadPermissions);
         }
 
         Ok(CleartextHolderInterface { root: root })
@@ -389,7 +371,7 @@ mod tests {
         let err =
             PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap(), false)
                 .unwrap_err();
-        assert_eq!(err, FilesystemError::NotFound);
+        assert_eq!(err, RadomskoError::NotFound);
     }
 
     #[test]
@@ -506,7 +488,7 @@ mod tests {
     fn cleartext_holder_requires_directory() {
         let err = CleartextHolderInterface::new(test_data_path("nonexistent").to_str().unwrap())
             .unwrap_err();
-        assert_eq!(err, FilesystemError::NotFound);
+        assert_eq!(err, RadomskoError::NotFound);
     }
 
     #[test]
@@ -519,7 +501,7 @@ mod tests {
         permissions.set_mode(CLEARTEXT_DIRECTORY_BAD_PERMISSIONS);
 
         let err = CleartextHolderInterface::new(tmp_dir.as_ref().to_str().unwrap()).unwrap_err();
-        assert_eq!(err, FilesystemError::BadPermissions);
+        assert_eq!(err, RadomskoError::BadPermissions);
     }
 
     #[test]

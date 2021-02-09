@@ -1,3 +1,4 @@
+mod errors;
 pub mod filesystem;
 
 fn subcommand_not_implemented() {
