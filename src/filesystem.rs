@@ -1,6 +1,8 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+use colorful::Colorful;
+
 const GPG_EXTENSION: &'static str = "gpg";
 const CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS: u32 = 0o700;
 
@@ -17,6 +19,7 @@ pub enum FilesystemError {
 #[derive(Debug)]
 pub struct PasswordStoreInterface {
     root: PathBuf,
+    colorize_display: bool,
 }
 
 // Interacts with the quasi-private space that holds cleartext
@@ -75,8 +78,31 @@ fn ok_dirent_as_pathbuf(entry: Result<walkdir::DirEntry, walkdir::Error>) -> Opt
     }
 }
 
+// Helper formatter for `PasswordStoreInterface::draw_tree_branch()`.
+fn tree_branch_with_indent(component: &std::ffi::OsStr, indent: usize, colorize: bool) -> String {
+    if colorize {
+        let pink = colorful::RGB::new(195, 91, 156);
+        return format!(
+            "{}*   {}",
+            "    ".repeat(indent),
+            component.to_str().unwrap()
+        )
+        .color(pink)
+        .bold()
+        .to_string();
+    }
+    format!(
+        "{}*   {}",
+        "    ".repeat(indent),
+        component.to_str().unwrap()
+    )
+}
+
 impl PasswordStoreInterface {
-    pub fn new(configured_root: &str) -> Result<PasswordStoreInterface, FilesystemError> {
+    pub fn new(
+        configured_root: &str,
+        colorize_display: bool,
+    ) -> Result<PasswordStoreInterface, FilesystemError> {
         let root = match configured_root.is_empty() {
             true => default_password_store_root(),
             false => PathBuf::from(configured_root),
@@ -86,7 +112,10 @@ impl PasswordStoreInterface {
             return Err(FilesystemError::NotFound);
         }
 
-        Ok(PasswordStoreInterface { root: root })
+        Ok(PasswordStoreInterface {
+            root: root,
+            colorize_display: colorize_display,
+        })
     }
 
     // Borrows a named `password` and returns the underlying path in the
@@ -186,6 +215,9 @@ impl PasswordStoreInterface {
         let mut previous_match: Option<&std::ffi::OsStr> = previous_components.next();
         let mut current_match: Option<&std::ffi::OsStr> = current_components.next();
 
+        // Seeks forward along `current` to ignore common ancestry with
+        // `previous`, since we only want to draw novel parts of the
+        // branch.
         while previous_match.is_some()
             && current_match.is_some()
             && previous_match.unwrap() == current_match.unwrap()
@@ -195,17 +227,32 @@ impl PasswordStoreInterface {
             indent += 1;
         }
 
-        result.push(format!(
-            "{}*   {}",
-            "    ".repeat(indent),
-            current_match.unwrap().to_str().unwrap()
+        // Push the first unique component of the `current` branch.
+        result.push(tree_branch_with_indent(
+            current_match.unwrap(),
+            indent,
+            self.colorize_display,
         ));
+
+        // Push the remaining unique components of the `current` branch.
         for remainder in current_components {
             indent += 1;
-            result.push(format!(
-                "{}*   {}",
-                "    ".repeat(indent),
-                remainder.to_str().unwrap()
+            result.push(tree_branch_with_indent(
+                remainder,
+                indent,
+                self.colorize_display,
+            ));
+        }
+
+        // If colorization is enabled, `result` consists solely of
+        // colorified entries; however, we want the leaf values to be
+        // monochrome.
+        if self.colorize_display {
+            result.pop();
+            result.push(tree_branch_with_indent(
+                symbolic_current.iter().last().unwrap(),
+                indent,
+                false,
             ));
         }
         result
@@ -317,7 +364,7 @@ mod tests {
     // backing directory to be tested, so `subdir` can be blank in
     // such test cases.
     fn password_store_interface(subdir: &str) -> PasswordStoreInterface {
-        PasswordStoreInterface::new(test_data_path(subdir).to_str().unwrap()).unwrap()
+        PasswordStoreInterface::new(test_data_path(subdir).to_str().unwrap(), false).unwrap()
     }
 
     fn cleartext_holder_fixture() -> CleartextHolderFixture {
@@ -339,8 +386,9 @@ mod tests {
 
     #[test]
     fn password_store_interface_requires_existing_root() {
-        let err = PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap())
-            .unwrap_err();
+        let err =
+            PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap(), false)
+                .unwrap_err();
         assert_eq!(err, FilesystemError::NotFound);
     }
 
