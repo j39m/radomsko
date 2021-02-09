@@ -1,25 +1,55 @@
 mod errors;
 pub mod filesystem;
 
+use clap::{App, AppSettings, Arg};
+
+use crate::errors::RadomskoError;
+
 fn subcommand_not_implemented() {
     eprintln!("This subcommand is not implemented.");
     std::process::exit(1);
 }
 
-fn main() {
-    let matches = clap::App::new("radomsko")
-        .setting(clap::AppSettings::SubcommandRequiredElseHelp)
+fn subcommand_find(search_term: &str) -> Result<(), RadomskoError> {
+    let interface = filesystem::PasswordStoreInterface::new("", true)?;
+    Ok(println!("{}", interface.draw_tree("", search_term)?))
+}
+
+fn main_impl() -> Result<(), RadomskoError> {
+    let matches = App::new("radomsko")
+        .setting(AppSettings::SubcommandRequiredElseHelp)
         .about("interacts with your password store")
         .version("0.1.0")
         .author("j39m")
-        .subcommand(clap::App::new("show").about("decrypts passwords"))
-        .subcommand(clap::App::new("edit").about("edits passwords"))
-        .subcommand(clap::App::new("find").about("searches password store")).get_matches();
+        .subcommand(App::new("show").about("decrypts passwords"))
+        .subcommand(App::new("edit").about("edits passwords"))
+        .subcommand(
+            App::new("find")
+                .about("searches password store")
+                .arg(Arg::with_name("keyword").help("search term").required(true)),
+        )
+        .get_matches();
 
     match matches.subcommand_name() {
-        Some("show") => return subcommand_not_implemented(),
-        Some("edit") => return subcommand_not_implemented(),
-        Some("find") => return subcommand_not_implemented(),
+        Some("show") => Ok(subcommand_not_implemented()),
+        Some("edit") => Ok(subcommand_not_implemented()),
+        Some("find") => Ok(subcommand_find(
+            matches
+                .subcommand_matches("find")
+                .unwrap()
+                .value_of("keyword")
+                .unwrap(),
+        )?),
         _ => panic!("BUG: unhandled subcommand"),
+    }
+}
+
+fn main() {
+    match main_impl() {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("Error: {:#?}", e);
+            std::process::exit(1);
+        }
     }
 }
