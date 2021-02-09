@@ -77,13 +77,12 @@ fn ok_dirent_as_pathbuf(entry: Result<walkdir::DirEntry, walkdir::Error>) -> Opt
 
 impl PasswordStoreInterface {
     pub fn new(configured_root: &str) -> Result<PasswordStoreInterface, FilesystemError> {
-        let mut root = PathBuf::from(configured_root);
-        if configured_root.is_empty() {
-            root = default_password_store_root();
-        }
+        let root = match configured_root.is_empty() {
+            true => default_password_store_root(),
+            false => PathBuf::from(configured_root),
+        };
 
-        let metadata = std::fs::metadata(root.as_path())?;
-        if !metadata.is_dir() {
+        if !std::fs::metadata(root.as_path())?.is_dir() {
             return Err(FilesystemError::NotFound);
         }
 
@@ -263,10 +262,10 @@ impl PasswordStoreInterface {
 
 impl CleartextHolderInterface {
     pub fn new(configured_root: &str) -> Result<CleartextHolderInterface, FilesystemError> {
-        let mut root = PathBuf::from(configured_root);
-        if configured_root.is_empty() {
-            root = default_cleartext_holder_dir()?;
-        }
+        let root = match configured_root.is_empty() {
+            true => default_cleartext_holder_dir()?,
+            false => PathBuf::from(configured_root),
+        };
 
         let metadata = std::fs::metadata(root.as_path())?;
         if !metadata.is_dir() {
@@ -326,7 +325,11 @@ mod tests {
             .prefix(CLEARTEXT_DIRECTORY_PREFIX)
             .tempdir_in(test_data_path("").to_str().unwrap())
             .unwrap();
-        std::fs::set_permissions(tmp_dir.as_ref(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(
+            tmp_dir.as_ref(),
+            std::fs::Permissions::from_mode(CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS),
+        )
+        .unwrap();
 
         CleartextHolderFixture::new(
             CleartextHolderInterface::new(tmp_dir.as_ref().to_str().unwrap()).unwrap(),
