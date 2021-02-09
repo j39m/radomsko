@@ -2,7 +2,6 @@
 pub enum RadomskoError {
     NotFound,
     BadPermissions,
-    PasswordLacksGpgExtension,
 }
 
 impl From<std::io::Error> for RadomskoError {

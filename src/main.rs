@@ -1,5 +1,5 @@
 mod errors;
-pub mod filesystem;
+mod filesystem;
 
 use clap::{App, AppSettings, Arg};
 
