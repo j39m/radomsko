@@ -252,7 +252,6 @@ impl PasswordStoreInterface {
             result.extend(self.draw_tree_branch(prev, password));
             prev = password;
         }
-        result.push("".to_owned());
 
         result.join("\n")
     }
@@ -393,8 +392,7 @@ mod tests {
                 *   b
                     *   c
                 *   d
-            *   e
-            "#}
+            *   e"#}
         );
     }
 
@@ -405,8 +403,7 @@ mod tests {
             interface.draw_tree("", "").unwrap(),
             indoc! {r#"
             *   a
-            *   b
-            "#}
+            *   b"#}
         );
     }
 
@@ -424,8 +421,7 @@ mod tests {
             *   d
                 *   a
                 *   b
-            *   e
-            "#}
+            *   e"#}
         );
     }
 
@@ -437,8 +433,7 @@ mod tests {
             indoc! {r#"
             *   b
                 *   a
-                *   b
-            "#}
+                *   b"#}
         );
     }
 
@@ -450,8 +445,7 @@ mod tests {
             indoc! {r#"
             *   a
                 *   b
-                    *   c
-            "#}
+                    *   c"#}
         );
     }
 
@@ -464,8 +458,7 @@ mod tests {
             *   a
                 *   b
                     *   c
-                *   d
-            "#}
+                *   d"#}
         );
     }
 
@@ -479,8 +472,7 @@ mod tests {
             *   b
                 *   a
             *   d
-                *   a
-            "#}
+                *   a"#}
         );
     }
 
