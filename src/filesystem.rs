@@ -359,12 +359,12 @@ mod tests {
         assert_eq!(
             interface.draw_tree("", "").unwrap(),
             indoc! {r#"
-        *   a
-            *   b
-                *   c
-            *   d
-        *   e
-        "#}
+            *   a
+                *   b
+                    *   c
+                *   d
+            *   e
+            "#}
         );
     }
 
@@ -374,9 +374,9 @@ mod tests {
         assert_eq!(
             interface.draw_tree("", "").unwrap(),
             indoc! {r#"
-        *   a
-        *   b
-        "#}
+            *   a
+            *   b
+            "#}
         );
     }
 
@@ -395,7 +395,7 @@ mod tests {
                 *   a
                 *   b
             *   e
-        "#}
+            "#}
         );
     }
 
@@ -408,7 +408,7 @@ mod tests {
             *   b
                 *   a
                 *   b
-        "#}
+            "#}
         );
     }
 
@@ -421,7 +421,7 @@ mod tests {
             *   a
                 *   b
                     *   c
-        "#}
+            "#}
         );
     }
 
@@ -435,7 +435,7 @@ mod tests {
                 *   b
                     *   c
                 *   d
-        "#}
+            "#}
         );
     }
 
@@ -450,7 +450,7 @@ mod tests {
                 *   a
             *   d
                 *   a
-        "#}
+            "#}
         );
     }
 
