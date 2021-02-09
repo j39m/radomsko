@@ -40,11 +40,7 @@ fn default_cleartext_holder_dir() -> Result<PathBuf, RadomskoError> {
 
 // Helper filter for `PasswordStoreInterface::draw_tree()`.
 fn is_gpg_file(path: &PathBuf) -> bool {
-    let metadata = match path.metadata() {
-        Ok(m) => m,
-        Err(_) => return false,
-    };
-    metadata.file_type().is_file() && path.to_str().unwrap().ends_with(GPG_EXTENSION)
+    path.is_file() && path.to_str().unwrap().ends_with(GPG_EXTENSION)
 }
 
 // Helper filter for `PasswordStoreInterface::draw_tree()`.
@@ -102,20 +98,25 @@ impl PasswordStoreInterface {
 
     // Borrows a named `password` and returns the underlying path in the
     // password store.
-    pub fn path_for(&self, password: &str) -> PathBuf {
-        self.path_for_impl(password, true)
+    pub fn path_for(&self, password: &str) -> Result<PathBuf, RadomskoError> {
+        Ok(self.path_for_impl(password, true)?)
     }
 
     // Borrows a relative `path` and returns the underlying path in the
     // password store.
-    fn path_for_impl(&self, path: &str, add_gpg_extension: bool) -> PathBuf {
+    fn path_for_impl(&self, path: &str, add_gpg_extension: bool) -> Result<PathBuf, RadomskoError> {
         let mut result = self.root.clone();
         result.push(path);
 
         if add_gpg_extension {
             result.set_extension(GPG_EXTENSION);
         }
-        result
+
+        let canonical = result.canonicalize()?;
+        if !canonical.starts_with(&self.root) {
+            return Err(RadomskoError::NotFound);
+        }
+        Ok(canonical)
     }
 
     // Borrows a `password_path` and returns its symbolic "name."
@@ -138,8 +139,8 @@ impl PasswordStoreInterface {
         &self,
         subdirectory: &str,
     ) -> Result<Vec<PathBuf>, RadomskoError> {
-        let path = self.path_for_impl(subdirectory, false);
-        if !std::fs::metadata(&path)?.is_dir() {
+        let path = self.path_for_impl(subdirectory, false)?;
+        if !path.is_dir() {
             return Err(RadomskoError::NotFound);
         }
 
@@ -341,9 +342,6 @@ mod tests {
         result
     }
 
-    // `PasswordStoreInterface::path_for()` doesn't need a functional
-    // backing directory to be tested, so `subdir` can be blank in
-    // such test cases.
     fn password_store_interface(subdir: &str) -> PasswordStoreInterface {
         PasswordStoreInterface::new(test_data_path(subdir).to_str().unwrap(), false).unwrap()
     }
@@ -375,11 +373,49 @@ mod tests {
 
     #[test]
     fn path_for_basic() {
-        let path = password_store_interface("").path_for("hello/there/general/kenobi");
+        let path = password_store_interface("path-for-basic")
+            .path_for("hello-there")
+            .unwrap();
         assert_eq!(
             path,
-            test_data_path("hello/there/general/kenobi.gpg").as_path()
+            test_data_path("path-for-basic/hello-there.gpg").as_path()
         )
+    }
+
+    #[test]
+    fn path_for_rejects_nonexistent_name() {
+        let err = password_store_interface("path-for-basic")
+            .path_for("general-kenobi")
+            .unwrap_err();
+        assert_eq!(err, RadomskoError::NotFound);
+    }
+
+    #[test]
+    fn path_for_allows_sneaky_paths() {
+        let path = password_store_interface("path-for-basic")
+            .path_for("general/kenobi/../../hello-there")
+            .unwrap();
+        assert_eq!(
+            path,
+            test_data_path("path-for-basic/hello-there.gpg").as_path()
+        );
+    }
+
+    #[test]
+    fn path_for_disallows_sneaky_escaping_paths() {
+        // For the purpose of this test, verify that the external
+        // ("escaped") path exists.
+        let _ = password_store_interface("path-for-basic-escape-path")
+            .path_for("klaus")
+            .unwrap();
+
+        // Now assert that a `PasswordStoreInterface` constructed
+        // against a different root cannot "escape" up and over into
+        // this other directory.
+        let err = password_store_interface("path-for-basic")
+            .path_for("general/kenobi/../../../path-for-basic-escape-path/klaus")
+            .unwrap_err();
+        assert_eq!(err, RadomskoError::NotFound);
     }
 
     #[test]
