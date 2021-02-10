@@ -1,11 +1,12 @@
 mod errors;
 mod external_commands;
-mod filesystem;
+mod password_store;
+mod cleartext_holder;
 
 use clap::{App, AppSettings, Arg};
 
 use crate::errors::RadomskoError;
-use crate::filesystem::*;
+use crate::password_store::*;
 
 fn subcommand_not_implemented() {
     eprintln!("This subcommand is not implemented.");
