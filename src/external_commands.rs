@@ -8,23 +8,20 @@ use crate::errors::RadomskoError;
 
 const DISPLAY: &'static str = "DISPLAY";
 
+fn gpg_decrypt_command(password_path: &str) -> Exec {
+    Exec::cmd("gpg")
+        .arg("--quiet")
+        .arg("-d")
+        .arg(password_path)
+        .env_remove(DISPLAY)
+}
+
 pub fn decrypt_password(password_path: &str, clip: bool) -> Result<(), RadomskoError> {
     let status: subprocess::ExitStatus;
     if clip {
-        status = (Exec::cmd("gpg")
-            .arg("--quiet")
-            .arg("-d")
-            .arg(password_path)
-            .env_remove(DISPLAY)
-            | Exec::cmd("wl-copy").arg("-n"))
-        .join()?;
+        status = (gpg_decrypt_command(password_path) | Exec::cmd("wl-copy").arg("-n")).join()?;
     } else {
-        status = Exec::cmd("gpg")
-            .arg("--quiet")
-            .arg("-d")
-            .arg(password_path)
-            .env_remove(DISPLAY)
-            .join()?;
+        status = gpg_decrypt_command(password_path).join()?;
     }
 
     match status {
