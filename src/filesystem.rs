@@ -109,7 +109,17 @@ impl PasswordStoreInterface {
         result.push(path);
 
         if add_gpg_extension {
-            result.set_extension(GPG_EXTENSION);
+            // If the symbolic password name has a dot in its name, `set_extension()`
+            // will think that it has an extension (and wrongly eat it).
+            if result.extension().is_some() {
+                result.set_file_name(format!(
+                    "{}.{}",
+                    result.file_name().unwrap().to_str().unwrap(),
+                    GPG_EXTENSION
+                ));
+            } else {
+                result.set_extension(GPG_EXTENSION);
+            }
         }
 
         let canonical = result.canonicalize()?;
@@ -416,6 +426,15 @@ mod tests {
             .path_for("general/kenobi/../../../path-for-basic-escape-path/klaus")
             .unwrap_err();
         assert_eq!(err, RadomskoError::NotFound);
+    }
+
+    #[test]
+    fn path_for_allows_dots_in_basename() {
+        let interface = password_store_interface("path-for-allows-dots-in-basename");
+        assert_eq!(
+            interface.path_for("klaus.txt").unwrap(),
+            test_data_path("path-for-allows-dots-in-basename/klaus.txt.gpg")
+        );
     }
 
     #[test]
