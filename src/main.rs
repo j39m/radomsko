@@ -57,11 +57,7 @@ pub fn main_impl() -> Result<(), RadomskoError> {
         .subcommand(
             App::new("show")
                 .about("decrypts passwords (or shows subdirectories)")
-                .arg(
-                    Arg::with_name("target")
-                        .help("password (or subdirectory)")
-                        .required(true),
-                )
+                .arg(Arg::with_name("target").help("optional: password or subdirectory"))
                 .arg(
                     Arg::with_name("clip")
                         .help("sends cleartext to clipboard")
@@ -81,7 +77,7 @@ pub fn main_impl() -> Result<(), RadomskoError> {
         Some("show") => {
             let submatches = matches.subcommand_matches("show").unwrap();
             Ok(command_runner.show(
-                submatches.value_of("target").unwrap(),
+                submatches.value_of("target").unwrap_or(""),
                 submatches.is_present("clip"),
             )?)
         }
