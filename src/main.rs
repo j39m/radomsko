@@ -1,4 +1,5 @@
 mod errors;
+mod external_commands;
 mod filesystem;
 
 use clap::{App, AppSettings, Arg};
@@ -37,7 +38,13 @@ impl CommandRunner {
             }
             Err(_) => (),
         }
-        Ok(subcommand_not_implemented())
+
+        let path = self.password_store.path_for(target)?;
+        external_commands::decrypt_password(path.to_str().unwrap(), clip)?;
+        if clip {
+            println!("clipped ``{}''", target);
+        }
+        Ok(())
     }
 }
 
