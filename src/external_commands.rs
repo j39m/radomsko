@@ -9,11 +9,11 @@ use crate::errors::RadomskoError;
 
 const DISPLAY: &'static str = "DISPLAY";
 
-fn gpg_decrypt_command(password_path: &str) -> Exec {
+fn gpg_decrypt_command(password: &Path) -> Exec {
     Exec::cmd("gpg")
         .arg("--quiet")
         .arg("-d")
-        .arg(password_path)
+        .arg(password.to_str().unwrap())
         .env_remove(DISPLAY)
 }
 
@@ -47,18 +47,18 @@ pub fn invoke_editor(password_path: &Path) -> Result<(), RadomskoError> {
     return_exit_status(status)
 }
 
-pub fn decrypt_password(password_path: &str, clip: bool) -> Result<(), RadomskoError> {
+pub fn decrypt_password(password: &Path, clip: bool) -> Result<(), RadomskoError> {
     let status: subprocess::ExitStatus;
     if clip {
-        status = (gpg_decrypt_command(password_path) | Exec::cmd("wl-copy").arg("-n")).join()?;
+        status = (gpg_decrypt_command(password) | Exec::cmd("wl-copy").arg("-n")).join()?;
     } else {
-        status = gpg_decrypt_command(password_path).join()?;
+        status = gpg_decrypt_command(password).join()?;
     }
     return_exit_status(status)
 }
 
-pub fn decrypt_password_to_string(password_path: &str) -> Result<String, RadomskoError> {
-    let capture_data = gpg_decrypt_command(password_path).capture()?;
+pub fn decrypt_password_to_string(password: &Path) -> Result<String, RadomskoError> {
+    let capture_data = gpg_decrypt_command(password).capture()?;
     if !capture_data.success() {
         return Err(RadomskoError::SubprocessError(format!(
             "failed to decrypt: ``{}''",

@@ -44,7 +44,7 @@ impl CommandRunner {
         }
 
         let path = self.password_store.path_for(target)?;
-        external_commands::decrypt_password(path.to_str().unwrap(), clip)?;
+        external_commands::decrypt_password(path.as_path(), clip)?;
         if clip {
             println!("clipped ``{}''", target);
         }
