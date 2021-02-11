@@ -2,12 +2,13 @@
 pub enum RadomskoError {
     NotFound,
     BadPermissions,
+    IoError(String),
     SubprocessError(String),
 }
 
 impl From<std::io::Error> for RadomskoError {
-    fn from(_err: std::io::Error) -> RadomskoError {
-        RadomskoError::NotFound
+    fn from(err: std::io::Error) -> RadomskoError {
+        RadomskoError::IoError(err.to_string())
     }
 }
 

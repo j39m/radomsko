@@ -101,7 +101,7 @@ mod tests {
     fn cleartext_holder_requires_directory() {
         let err = CleartextHolderInterface::new(test_data_path("nonexistent").to_str().unwrap())
             .unwrap_err();
-        assert_eq!(err, RadomskoError::NotFound);
+        assert!(matches!(err, RadomskoError::IoError{..}));
     }
 
     #[test]
