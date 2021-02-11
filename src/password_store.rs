@@ -106,7 +106,10 @@ impl PasswordStoreInterface {
 
         let canonical = result.canonicalize()?;
         if !canonical.starts_with(&self.root) {
-            return Err(RadomskoError::NotFound);
+            return Err(RadomskoError::IoError(format!(
+                "bad path: {}",
+                canonical.display()
+            )));
         }
         Ok(canonical)
     }
@@ -351,7 +354,7 @@ mod tests {
         let err = password_store_interface("path-for-basic")
             .path_for("general/kenobi/../../../path-for-basic-escape-path/klaus")
             .unwrap_err();
-        assert_eq!(err, RadomskoError::NotFound);
+        assert!(matches!(err, RadomskoError::IoError{..}));
     }
 
     #[test]
