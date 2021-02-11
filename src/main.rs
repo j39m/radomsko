@@ -1,7 +1,7 @@
+mod cleartext_holder;
 mod errors;
 mod external_commands;
 mod password_store;
-mod cleartext_holder;
 
 use clap::{App, AppSettings, Arg};
 
