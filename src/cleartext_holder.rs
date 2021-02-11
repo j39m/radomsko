@@ -1,5 +1,5 @@
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::errors::RadomskoError;
 
@@ -44,6 +44,14 @@ impl CleartextHolderInterface {
         Ok(tempfile::Builder::new()
             .prefix(CLEARTEXT_TEMPFILE_PREFIX)
             .tempfile_in(&self.root)?)
+    }
+
+    // `target` names a file that we have asked gpg to encrypt.
+    // Returns the contents of the encrypted output.
+    pub fn encrypted_contents_for(target: &Path) -> Result<String, RadomskoError> {
+        let mut encrypted_target = target.to_path_buf();
+        encrypted_target.set_extension("gpg");
+        Ok(std::fs::read_to_string(encrypted_target)?)
     }
 }
 
@@ -98,14 +106,14 @@ mod tests {
     }
 
     #[test]
-    fn cleartext_holder_requires_directory() {
+    fn require_directory() {
         let err = CleartextHolderInterface::new(test_data_path("nonexistent").to_str().unwrap())
             .unwrap_err();
         assert!(matches!(err, RadomskoError::IoError{..}));
     }
 
     #[test]
-    fn cleartext_holder_wants_directory_permissions() {
+    fn holder_directory_disallows_bad_permissions() {
         let tmp_dir = tempfile::Builder::new()
             .prefix(CLEARTEXT_DIRECTORY_PREFIX)
             .tempdir_in(test_data_path("").to_str().unwrap())
@@ -118,7 +126,7 @@ mod tests {
     }
 
     #[test]
-    fn cleartext_holder_basic() {
+    fn holder_directory_constructs_with_good_permissions() {
         let fixture = cleartext_holder_fixture();
         let permissions = std::fs::metadata(fixture.backing_dir.as_ref())
             .unwrap()
@@ -130,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn cleartext_holder_new_entry() {
+    fn new_entry() {
         let fixture = cleartext_holder_fixture();
         let temporary = fixture.interface.new_entry().unwrap();
         let temporary_path = temporary.path().to_path_buf();
@@ -153,5 +161,18 @@ mod tests {
         // We expect that the tempfile disappears when dropped.
         assert!(temporary.close().is_ok());
         assert!(!temporary_path.exists());
+    }
+
+    #[test]
+    fn encrypted_contents_for_expects_gpg_file() {
+        let fixture = cleartext_holder_fixture();
+        let temporary = fixture.interface.new_entry().unwrap();
+
+        // We expect that `new_entry()` spawns a tempfile.
+        assert!(temporary.path().is_file());
+
+        // But we've spawned nothing else in the backing directory,
+        // so we expect `encrypted_contents_for()` to fail.
+        assert!(CleartextHolderInterface::encrypted_contents_for(temporary.path()).is_err());
     }
 }
