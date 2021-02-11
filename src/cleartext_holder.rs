@@ -1,5 +1,5 @@
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::errors::RadomskoError;
 
@@ -37,6 +37,10 @@ impl CleartextHolderInterface {
         }
 
         Ok(CleartextHolderInterface { root: root })
+    }
+
+    pub fn new_entry(&self) -> Result<tempfile::NamedTempFile, RadomskoError> {
+        Ok(tempfile::NamedTempFile::new_in(&self.root)?)
     }
 }
 
@@ -120,5 +124,22 @@ mod tests {
             permissions.mode() & 0o777,
             CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS
         );
+    }
+
+    #[test]
+    fn cleartext_holder_new_entry() {
+        let fixture = cleartext_holder_fixture();
+        let temporary = fixture.interface.new_entry().unwrap();
+        let temporary_path = temporary.path().to_path_buf();
+
+        // We expect that `new_entry()` spawns a tempfile.
+        assert!(temporary_path.is_file());
+
+        // We expect that the tempfile is in the expected location.
+        assert!(temporary_path.starts_with(&fixture.interface.root));
+
+        // We expect that the tempfile disappears when dropped.
+        drop(temporary);
+        assert!(!temporary_path.exists());
     }
 }
