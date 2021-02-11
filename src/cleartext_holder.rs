@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crate::errors::RadomskoError;
 
 const CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS: u32 = 0o700;
+const CLEARTEXT_TEMPFILE_PREFIX: &'static str = "radomsko-cleartext-";
 
 // Interacts with the quasi-private space that holds cleartext
 // passwords.
@@ -40,7 +41,9 @@ impl CleartextHolderInterface {
     }
 
     pub fn new_entry(&self) -> Result<tempfile::NamedTempFile, RadomskoError> {
-        Ok(tempfile::NamedTempFile::new_in(&self.root)?)
+        Ok(tempfile::Builder::new()
+            .prefix(CLEARTEXT_TEMPFILE_PREFIX)
+            .tempfile_in(&self.root)?)
     }
 }
 
@@ -138,8 +141,17 @@ mod tests {
         // We expect that the tempfile is in the expected location.
         assert!(temporary_path.starts_with(&fixture.interface.root));
 
+        // We demand two other properties of the tempfile's name.
+        assert!(temporary_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with(CLEARTEXT_TEMPFILE_PREFIX));
+        assert!(temporary_path.extension().is_none());
+
         // We expect that the tempfile disappears when dropped.
-        drop(temporary);
+        assert!(temporary.close().is_ok());
         assert!(!temporary_path.exists());
     }
 }
