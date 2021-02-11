@@ -45,12 +45,9 @@ impl CommandRunner {
     }
 
     pub fn show(&self, target: &str, clip: bool) -> Result<(), RadomskoError> {
-        match self.password_store.draw_tree(target, "") {
-            Ok(render) => {
-                println!("{}", render);
-                return Ok(());
-            }
-            Err(_) => (),
+        if let Ok(render) = self.password_store.draw_tree(target, "") {
+            println!("{}", render);
+            return Ok(());
         }
 
         let path = self.password_store.path_for(target)?;
