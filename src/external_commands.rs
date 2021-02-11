@@ -41,7 +41,9 @@ fn return_exit_status(status: subprocess::ExitStatus) -> Result<(), RadomskoErro
 
 pub fn invoke_editor(password_path: &Path) -> Result<(), RadomskoError> {
     let editor = std::env::var("EDITOR")?;
-    let status = Exec::cmd(editor).join()?;
+    let status = Exec::cmd(editor)
+        .arg(password_path.to_str().unwrap())
+        .join()?;
     return_exit_status(status)
 }
 
