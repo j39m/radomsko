@@ -2,6 +2,7 @@
 // a common implementation in that they act outside the main body of
 // radomsko through external binaries.
 
+use std::path::Path;
 use subprocess::{Exec, ExitStatus::*};
 
 use crate::errors::RadomskoError;
@@ -16,14 +17,7 @@ fn gpg_decrypt_command(password_path: &str) -> Exec {
         .env_remove(DISPLAY)
 }
 
-pub fn decrypt_password(password_path: &str, clip: bool) -> Result<(), RadomskoError> {
-    let status: subprocess::ExitStatus;
-    if clip {
-        status = (gpg_decrypt_command(password_path) | Exec::cmd("wl-copy").arg("-n")).join()?;
-    } else {
-        status = gpg_decrypt_command(password_path).join()?;
-    }
-
+fn return_exit_status(status: subprocess::ExitStatus) -> Result<(), RadomskoError> {
     match status {
         Exited(code) => {
             if code == 0 {
@@ -43,4 +37,20 @@ pub fn decrypt_password(password_path: &str, clip: bool) -> Result<(), RadomskoE
             "Other / Undetermined branch (???)".to_string(),
         )),
     }
+}
+
+pub fn invoke_editor(password_path: &Path) -> Result<(), RadomskoError> {
+    let editor = std::env::var("EDITOR")?;
+    let status = Exec::cmd(editor).join()?;
+    return_exit_status(status)
+}
+
+pub fn decrypt_password(password_path: &str, clip: bool) -> Result<(), RadomskoError> {
+    let status: subprocess::ExitStatus;
+    if clip {
+        status = (gpg_decrypt_command(password_path) | Exec::cmd("wl-copy").arg("-n")).join()?;
+    } else {
+        status = gpg_decrypt_command(password_path).join()?;
+    }
+    return_exit_status(status)
 }
