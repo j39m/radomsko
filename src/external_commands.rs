@@ -56,3 +56,14 @@ pub fn decrypt_password(password_path: &str, clip: bool) -> Result<(), RadomskoE
     }
     return_exit_status(status)
 }
+
+pub fn decrypt_password_to_string(password_path: &str) -> Result<String, RadomskoError> {
+    let capture_data = gpg_decrypt_command(password_path).capture()?;
+    if !capture_data.success() {
+        return Err(RadomskoError::SubprocessError(format!(
+            "failed to decrypt: ``{}''",
+            capture_data.stderr_str()
+        )));
+    }
+    Ok(capture_data.stdout_str())
+}
