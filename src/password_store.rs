@@ -80,37 +80,45 @@ impl PasswordStoreInterface {
 
     // Borrows a named `password` and returns the underlying path in the
     // password store.
+    //
+    // *    Does not require that the resulting path to `password` exist.
+    // *    _Does_ require that the containing dir to the resulting path
+    //      exist.
     pub fn path_for(&self, password: &str) -> Result<PathBuf, RadomskoError> {
-        Ok(self.path_for_impl(password, true)?)
+        self.path_for_impl(password, true)
     }
 
     // Borrows a relative `path` and returns the underlying path in the
     // password store.
     fn path_for_impl(&self, path: &str, add_gpg_extension: bool) -> Result<PathBuf, RadomskoError> {
-        let mut result = self.root.clone();
-        result.push(path);
+        let mut full_path = self.root.clone();
+        full_path.push(path);
+
+        let containing_dir = match full_path.parent() {
+            Some(parent) => parent,
+            None => return Err(RadomskoError::IoError(format!("bad path: {}", path))),
+        };
+
+        let mut canonical = containing_dir.canonicalize()?;
+        if !canonical.starts_with(&self.root) {
+            return Err(RadomskoError::IoError(format!("bad path: {}", path)));
+        }
+        canonical.push(full_path.file_name().unwrap());
 
         if add_gpg_extension {
             // If the symbolic password name has a dot in its name, `set_extension()`
             // will think that it has an extension (and wrongly eat it).
-            if result.extension().is_some() {
-                result.set_file_name(format!(
+            if canonical.extension().is_some() {
+                canonical.set_file_name(format!(
                     "{}.{}",
-                    result.file_name().unwrap().to_str().unwrap(),
+                    canonical.file_name().unwrap().to_str().unwrap(),
                     GPG_EXTENSION
                 ));
             } else {
-                result.set_extension(GPG_EXTENSION);
+                canonical.set_extension(GPG_EXTENSION);
             }
         }
 
-        let canonical = result.canonicalize()?;
-        if !canonical.starts_with(&self.root) {
-            return Err(RadomskoError::IoError(format!(
-                "bad path: {}",
-                canonical.display()
-            )));
-        }
         Ok(canonical)
     }
 
@@ -322,9 +330,17 @@ mod tests {
     }
 
     #[test]
-    fn path_for_rejects_nonexistent_name() {
-        let err = password_store_interface("path-for-basic")
+    fn path_for_allows_nonexistent_leaf() {
+        let path = password_store_interface("path-for-basic")
             .path_for("general-kenobi")
+            .unwrap();
+        assert_eq!(path, test_data_path("path-for-basic/general-kenobi.gpg"));
+    }
+
+    #[test]
+    fn path_for_disallows_nonexistent_containing_dir() {
+        let err = password_store_interface("path-for-basic")
+            .path_for("general/grievous/whats-the-situation")
             .unwrap_err();
         assert!(matches!(err, RadomskoError::IoError{..}));
     }
