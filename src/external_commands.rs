@@ -67,3 +67,14 @@ pub fn decrypt_password_to_string(password: &Path) -> Result<String, RadomskoErr
     }
     Ok(capture_data.stdout_str())
 }
+
+pub fn encrypt_cleartext(cleartext: &Path) -> Result<(), RadomskoError> {
+    let status = Exec::cmd("gpg")
+        .arg("--quiet")
+        .arg("-e")
+        .arg("--default-recipient-self")
+        .arg(cleartext.to_str().unwrap())
+        .env_remove(DISPLAY)
+        .join()?;
+    return_exit_status(status)
+}
