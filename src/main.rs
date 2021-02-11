@@ -5,13 +5,9 @@ mod password_store;
 
 use clap::{App, AppSettings, Arg};
 
+use crate::cleartext_holder::CleartextHolderInterface;
 use crate::errors::RadomskoError;
-use crate::password_store::*;
-
-fn subcommand_not_implemented() {
-    eprintln!("This subcommand is not implemented.");
-    std::process::exit(1);
-}
+use crate::password_store::PasswordStoreInterface;
 
 struct CommandRunner {
     password_store: PasswordStoreInterface,
@@ -22,6 +18,13 @@ impl CommandRunner {
         Ok(CommandRunner {
             password_store: PasswordStoreInterface::new("", true)?,
         })
+    }
+
+    pub fn edit(&self, target: &str) -> Result<(), RadomskoError> {
+        let cleartext_holder = CleartextHolderInterface::new("")?;
+        let path = self.password_store.path_for(target)?;
+        eprintln!("This subcommand is not implemented.");
+        std::process::exit(1);
     }
 
     pub fn find(&self, search_term: &str) -> Result<(), RadomskoError> {
@@ -65,7 +68,13 @@ pub fn main_impl() -> Result<(), RadomskoError> {
                         .short("c"),
                 ),
         )
-        .subcommand(App::new("edit").about("edits passwords"))
+        .subcommand(
+            App::new("edit").about("edits passwords").arg(
+                Arg::with_name("target")
+                    .help("password to edit")
+                    .required(true),
+            ),
+        )
         .subcommand(
             App::new("find")
                 .about("searches password store")
@@ -82,7 +91,13 @@ pub fn main_impl() -> Result<(), RadomskoError> {
                 submatches.is_present("clip"),
             )?)
         }
-        Some("edit") => Ok(subcommand_not_implemented()),
+        Some("edit") => Ok(command_runner.edit(
+            matches
+                .subcommand_matches("edit")
+                .unwrap()
+                .value_of("target")
+                .unwrap(),
+        )?),
         Some("find") => Ok(command_runner.find(
             matches
                 .subcommand_matches("find")
