@@ -23,14 +23,17 @@ impl CommandRunner {
 
     pub fn edit(&self, target: &str) -> Result<(), RadomskoError> {
         let cleartext_holder = CleartextHolderInterface::new("")?;
-        let path = self.password_store.path_for(target)?;
+        let target_path = self.password_store.path_for(target)?;
         let mut cleartext_tempfile = cleartext_holder.new_entry()?;
 
-        let cleartext_password = external_commands::decrypt_password_to_string(path.as_path())?;
-        cleartext_tempfile
-            .as_file_mut()
-            .write_all(cleartext_password.as_bytes())?;
-        cleartext_tempfile.as_file_mut().sync_data()?;
+        if target_path.is_file() {
+            let cleartext_password =
+                external_commands::decrypt_password_to_string(target_path.as_path())?;
+            cleartext_tempfile
+                .as_file_mut()
+                .write_all(cleartext_password.as_bytes())?;
+            cleartext_tempfile.as_file_mut().sync_data()?;
+        }
 
         external_commands::invoke_editor(cleartext_tempfile.path())?;
 
