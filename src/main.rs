@@ -26,8 +26,8 @@ impl CommandRunner {
         let target_path = self.password_store.path_for(target)?;
         let mut cleartext_tempfile = cleartext_holder.new_entry()?;
 
-        let password_is_new = target_path.is_file();
-        if password_is_new {
+        let password_exists = target_path.is_file();
+        if password_exists {
             let cleartext_password =
                 external_commands::decrypt_password_to_string(target_path.as_path())?;
             cleartext_tempfile
@@ -39,7 +39,8 @@ impl CommandRunner {
         external_commands::invoke_editor(cleartext_tempfile.path())?;
         external_commands::encrypt_cleartext(cleartext_tempfile.path())?;
 
-        let encrypted = CleartextHolderInterface::encrypted_contents_for(cleartext_tempfile.path())?;
+        let encrypted =
+            CleartextHolderInterface::encrypted_contents_for(cleartext_tempfile.path())?;
 
         Ok(())
     }
