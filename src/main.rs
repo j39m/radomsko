@@ -47,7 +47,9 @@ impl CommandRunner {
 
     pub fn edit(&self, target: &str) -> Result<(), RadomskoError> {
         let encrypted = self.get_encrypted_edited_password(target)?;
-        Ok(())
+
+        let target_path = self.password_store.path_for(target)?;
+        Ok(std::fs::write(target_path, encrypted)?)
     }
 
     pub fn find(&self, search_term: &str) -> Result<(), RadomskoError> {
