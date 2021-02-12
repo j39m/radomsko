@@ -21,7 +21,7 @@ impl CommandRunner {
         })
     }
 
-    pub fn edit(&self, target: &str) -> Result<(), RadomskoError> {
+    fn get_encrypted_edited_password(&self, target: &str) -> Result<Vec<u8>, RadomskoError> {
         let cleartext_holder = CleartextHolderInterface::new("")?;
         let target_path = self.password_store.path_for(target)?;
         let mut cleartext_tempfile = cleartext_holder.new_entry()?;
@@ -38,10 +38,15 @@ impl CommandRunner {
 
         external_commands::invoke_editor(cleartext_tempfile.path())?;
         external_commands::encrypt_cleartext(cleartext_tempfile.path())?;
-
         let encrypted =
             CleartextHolderInterface::encrypted_contents_for(cleartext_tempfile.path())?;
+        cleartext_holder.remove_encrypted_output_of(cleartext_tempfile.path())?;
 
+        Ok(encrypted)
+    }
+
+    pub fn edit(&self, target: &str) -> Result<(), RadomskoError> {
+        let encrypted = self.get_encrypted_edited_password(target)?;
         Ok(())
     }
 

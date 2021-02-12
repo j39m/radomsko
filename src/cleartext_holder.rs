@@ -48,10 +48,19 @@ impl CleartextHolderInterface {
 
     // `target` names a file that we have asked gpg to encrypt.
     // Returns the contents of the encrypted output.
-    pub fn encrypted_contents_for(target: &Path) -> Result<String, RadomskoError> {
+    pub fn encrypted_contents_for(target: &Path) -> Result<Vec<u8>, RadomskoError> {
         let mut encrypted_target = target.to_path_buf();
         encrypted_target.set_extension("gpg");
-        Ok(std::fs::read_to_string(encrypted_target)?)
+        Ok(std::fs::read(encrypted_target)?)
+    }
+
+    pub fn remove_encrypted_output_of(&self, target: &Path) -> Result<(), RadomskoError> {
+        assert!(target.starts_with(&self.root));
+
+        let mut encrypted_target = target.to_path_buf();
+        encrypted_target.set_extension("gpg");
+
+        Ok(std::fs::remove_file(encrypted_target)?)
     }
 }
 
