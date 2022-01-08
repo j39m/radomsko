@@ -47,6 +47,11 @@ pub fn invoke_editor(password_path: &Path) -> Result<(), RadomskoError> {
     return_exit_status(status)
 }
 
+pub fn clear_clipboard() -> Result<(), RadomskoError> {
+    let status = Exec::cmd("wl-copy").arg("-c").join()?;
+    return_exit_status(status)
+}
+
 pub fn decrypt_password(password: &Path, clip: bool) -> Result<(), RadomskoError> {
     let status: subprocess::ExitStatus;
     if clip {

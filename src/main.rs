@@ -10,8 +10,25 @@ use crate::cleartext_holder::CleartextHolderInterface;
 use crate::errors::RadomskoError;
 use crate::password_store::PasswordStoreInterface;
 
+const CLIPBOARD_CLEAR_TIMER: u64 = 13;
+
 struct CommandRunner {
     password_store: PasswordStoreInterface,
+}
+
+fn wait_and_clear_clipboard(target: &str) {
+    println!(
+        "Clipped ``{};'' clearing in {}s",
+        target, CLIPBOARD_CLEAR_TIMER
+    );
+    ctrlc::set_handler(move || {
+        eprintln!("Interrupted");
+        external_commands::clear_clipboard().expect("Error clearing clipboard");
+        std::process::exit(1);
+    })
+    .expect("Error setting signal handler");
+    std::thread::sleep(std::time::Duration::from_secs(CLIPBOARD_CLEAR_TIMER));
+    external_commands::clear_clipboard().expect("Error clearing clipboard");
 }
 
 impl CommandRunner {
@@ -68,7 +85,7 @@ impl CommandRunner {
         let path = self.password_store.path_for(target)?;
         external_commands::decrypt_password(path.as_path(), clip)?;
         if clip {
-            println!("clipped ``{}''", target);
+            wait_and_clear_clipboard(target);
         }
         Ok(())
     }
@@ -91,11 +108,9 @@ pub fn main_impl() -> Result<(), RadomskoError> {
                 ),
         )
         .subcommand(
-            App::new("edit").about("edits passwords").arg(
-                Arg::new("target")
-                    .help("password to edit")
-                    .required(true),
-            ),
+            App::new("edit")
+                .about("edits passwords")
+                .arg(Arg::new("target").help("password to edit").required(true)),
         )
         .subcommand(
             App::new("find")
