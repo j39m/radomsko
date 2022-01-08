@@ -78,21 +78,21 @@ pub fn main_impl() -> Result<(), RadomskoError> {
     let matches = App::new("radomsko")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .about("interacts with your password store")
-        .version("0.1.0")
+        .version("0.1.1")
         .author("j39m")
         .subcommand(
             App::new("show")
                 .about("decrypts passwords (or shows subdirectories)")
-                .arg(Arg::with_name("target").help("optional: password or subdirectory"))
+                .arg(Arg::new("target").help("optional: password or subdirectory"))
                 .arg(
-                    Arg::with_name("clip")
+                    Arg::new("clip")
                         .help("sends cleartext to clipboard")
-                        .short("c"),
+                        .short('c'),
                 ),
         )
         .subcommand(
             App::new("edit").about("edits passwords").arg(
-                Arg::with_name("target")
+                Arg::new("target")
                     .help("password to edit")
                     .required(true),
             ),
@@ -100,7 +100,7 @@ pub fn main_impl() -> Result<(), RadomskoError> {
         .subcommand(
             App::new("find")
                 .about("searches password store")
-                .arg(Arg::with_name("keyword").help("search term").required(true)),
+                .arg(Arg::new("keyword").help("search term").required(true)),
         )
         .get_matches();
 
