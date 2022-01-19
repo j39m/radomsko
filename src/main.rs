@@ -83,6 +83,9 @@ impl CommandRunner {
         }
 
         let path = self.password_store.path_for(target)?;
+        if !path.is_file() {
+            return Err(RadomskoError::NotFound);
+        }
         external_commands::decrypt_password(path.as_path(), clip)?;
         if clip {
             wait_and_clear_clipboard(target);

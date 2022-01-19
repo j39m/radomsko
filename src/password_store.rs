@@ -315,7 +315,7 @@ mod tests {
         let err =
             PasswordStoreInterface::new(test_data_path("some/random/dir").to_str().unwrap(), false)
                 .unwrap_err();
-        assert!(matches!(err, RadomskoError::IoError{..}));
+        assert!(matches!(err, RadomskoError::IoError { .. }));
     }
 
     #[test]
@@ -342,7 +342,7 @@ mod tests {
         let err = password_store_interface("path-for-basic")
             .path_for("general/grievous/whats-the-situation")
             .unwrap_err();
-        assert!(matches!(err, RadomskoError::IoError{..}));
+        assert!(matches!(err, RadomskoError::IoError { .. }));
     }
 
     #[test]
@@ -370,7 +370,7 @@ mod tests {
         let err = password_store_interface("path-for-basic")
             .path_for("general/kenobi/../../../path-for-basic-escape-path/klaus")
             .unwrap_err();
-        assert!(matches!(err, RadomskoError::IoError{..}));
+        assert!(matches!(err, RadomskoError::IoError { .. }));
     }
 
     #[test]
