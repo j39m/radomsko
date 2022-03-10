@@ -5,7 +5,8 @@
 use std::path::Path;
 use subprocess::{Exec, ExitStatus::*};
 
-use crate::errors::RadomskoError;
+use crate::enums::RadomskoError;
+use crate::enums::ShowDestination;
 
 const DISPLAY: &'static str = "DISPLAY";
 
@@ -52,23 +53,38 @@ pub fn clear_clipboard() -> Result<(), RadomskoError> {
     return_exit_status(status)
 }
 
-pub fn decrypt_password(password: &Path, clip: bool) -> Result<(), RadomskoError> {
+pub fn decrypt_password(password: &Path, dest: ShowDestination) -> Result<(), RadomskoError> {
     let decrypted = decrypt_password_to_string(password)?;
 
     // This does a lot more than I want it to, but none of my passwords
     // ever start or end with whitespace, so it is safe for me.
     let trimmed = decrypted.trim();
-    if clip {
-        let capture = Exec::cmd("wl-copy")
-            .stdin(trimmed)
-            .stdout(subprocess::NullFile)
-            .stderr(subprocess::NullFile)
-            .capture()?;
-        return return_exit_status(capture.exit_status);
+    let status: subprocess::ExitStatus;
+    match dest {
+        ShowDestination::Stdout => {
+            println!("{}", trimmed);
+            status = subprocess::ExitStatus::Exited(0);
+        }
+        ShowDestination::Clip => {
+            status = Exec::cmd("wl-copy")
+                .stdin(trimmed)
+                .stdout(subprocess::NullFile)
+                .stderr(subprocess::NullFile)
+                .capture()?
+                .exit_status;
+        }
+        ShowDestination::QrCode => {
+            status = Exec::cmd("qrencode")
+                .arg("-t")
+                .arg("utf8")
+                .stdin(trimmed)
+                .stdout(subprocess::Redirection::None)
+                .stderr(subprocess::NullFile)
+                .capture()?
+                .exit_status;
+        }
     }
-
-    println!("{}", trimmed);
-    Ok(())
+    return_exit_status(status)
 }
 
 pub fn decrypt_password_to_string(password: &Path) -> Result<String, RadomskoError> {

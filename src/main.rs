@@ -1,5 +1,5 @@
 mod cleartext_holder;
-mod errors;
+mod enums;
 mod external_commands;
 mod password_store;
 
@@ -7,7 +7,8 @@ use clap::{App, AppSettings, Arg};
 use std::io::Write;
 
 use crate::cleartext_holder::CleartextHolderInterface;
-use crate::errors::RadomskoError;
+use crate::enums::RadomskoError;
+use crate::enums::ShowDestination;
 use crate::password_store::PasswordStoreInterface;
 
 const CLIPBOARD_CLEAR_TIMER: u64 = 13;
@@ -76,7 +77,9 @@ impl CommandRunner {
         ))
     }
 
-    pub fn show(&self, target: &str, clip: bool) -> Result<(), RadomskoError> {
+    pub fn show(&self, target: &str, dest: ShowDestination) -> Result<(), RadomskoError> {
+        // If a tree can be drawn at all (i.e. `target` is ambiguous),
+        // then we leave it at that.
         if let Ok(render) = self.password_store.draw_tree(target, "") {
             println!("{}", render);
             return Ok(());
@@ -86,8 +89,8 @@ impl CommandRunner {
         if !path.is_file() {
             return Err(RadomskoError::NotFound);
         }
-        external_commands::decrypt_password(path.as_path(), clip)?;
-        if clip {
+        external_commands::decrypt_password(path.as_path(), dest)?;
+        if dest == ShowDestination::Clip {
             wait_and_clear_clipboard(target);
         }
         Ok(())
@@ -98,7 +101,7 @@ pub fn main_impl() -> Result<(), RadomskoError> {
     let matches = App::new("radomsko")
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .about("interacts with your password store")
-        .version("0.1.1")
+        .version("0.2.1")
         .author("j39m")
         .subcommand(
             App::new("show")
@@ -106,8 +109,15 @@ pub fn main_impl() -> Result<(), RadomskoError> {
                 .arg(Arg::new("target").help("optional: password or subdirectory"))
                 .arg(
                     Arg::new("clip")
+                        .conflicts_with("qr")
                         .help("sends cleartext to clipboard")
                         .short('c'),
+                )
+                .arg(
+                    Arg::new("qr")
+                        .conflicts_with("clip")
+                        .help("displays cleartext as QR code (dangerous!)")
+                        .short('q'),
                 ),
         )
         .subcommand(
@@ -126,10 +136,14 @@ pub fn main_impl() -> Result<(), RadomskoError> {
     match matches.subcommand_name() {
         Some("show") => {
             let submatches = matches.subcommand_matches("show").unwrap();
-            Ok(command_runner.show(
-                submatches.value_of("target").unwrap_or(""),
-                submatches.is_present("clip"),
-            )?)
+            let dest = if submatches.is_present("clip") {
+                ShowDestination::Clip
+            } else if submatches.is_present("qr") {
+                ShowDestination::QrCode
+            } else {
+                ShowDestination::Stdout
+            };
+            Ok(command_runner.show(submatches.value_of("target").unwrap_or(""), dest)?)
         }
         Some("edit") => Ok(command_runner.edit(
             matches

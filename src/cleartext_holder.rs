@@ -1,7 +1,7 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use crate::errors::RadomskoError;
+use crate::enums::RadomskoError;
 
 const CLEARTEXT_DIRECTORY_REQUIRED_PERMISSIONS: u32 = 0o700;
 const CLEARTEXT_TEMPFILE_PREFIX: &'static str = "radomsko-cleartext-";

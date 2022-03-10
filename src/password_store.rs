@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use colorful::Colorful;
 
-use crate::errors::RadomskoError;
+use crate::enums::RadomskoError;
 
 const GPG_EXTENSION: &'static str = "gpg";
 

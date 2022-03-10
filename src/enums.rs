@@ -23,3 +23,10 @@ impl From<subprocess::PopenError> for RadomskoError {
         RadomskoError::SubprocessError(err.to_string())
     }
 }
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum ShowDestination {
+    Stdout,
+    Clip,
+    QrCode,
+}
