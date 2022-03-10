@@ -53,13 +53,22 @@ pub fn clear_clipboard() -> Result<(), RadomskoError> {
 }
 
 pub fn decrypt_password(password: &Path, clip: bool) -> Result<(), RadomskoError> {
-    let status: subprocess::ExitStatus;
+    let decrypted = decrypt_password_to_string(password)?;
+
+    // This does a lot more than I want it to, but none of my passwords
+    // ever start or end with whitespace, so it is safe for me.
+    let trimmed = decrypted.trim();
     if clip {
-        status = (gpg_decrypt_command(password) | Exec::cmd("wl-copy").arg("-n")).join()?;
-    } else {
-        status = gpg_decrypt_command(password).join()?;
+        let capture = Exec::cmd("wl-copy")
+            .stdin(trimmed)
+            .stdout(subprocess::NullFile)
+            .stderr(subprocess::NullFile)
+            .capture()?;
+        return return_exit_status(capture.exit_status);
     }
-    return_exit_status(status)
+
+    println!("{}", trimmed);
+    Ok(())
 }
 
 pub fn decrypt_password_to_string(password: &Path) -> Result<String, RadomskoError> {
