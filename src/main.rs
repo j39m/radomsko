@@ -91,6 +91,7 @@ impl CommandRunner {
         }
         external_commands::decrypt_password(path.as_path(), dest)?;
         if dest == ShowDestination::Clip {
+            let _ = external_commands::switch_workspace();
             wait_and_clear_clipboard(target);
         }
         Ok(())
