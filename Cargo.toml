@@ -9,7 +9,6 @@ name = "radomsko"
 path = "src/main.rs"
 
 [dependencies]
-clap = "3"
 colorful = "0"
 ctrlc = "3"
 home = "0"
@@ -17,3 +16,7 @@ indoc = "2"
 subprocess = "0"
 tempfile = "3"
 walkdir = "2"
+
+[dependencies.clap]
+version = "4"
+features = [ "derive" ]

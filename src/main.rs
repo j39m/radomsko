@@ -3,7 +3,6 @@ mod enums;
 mod external_commands;
 mod password_store;
 
-use clap::{App, AppSettings, Arg};
 use std::io::Write;
 
 use crate::cleartext_holder::CleartextHolderInterface;
@@ -12,6 +11,51 @@ use crate::enums::ShowDestination;
 use crate::password_store::PasswordStoreInterface;
 
 const CLIPBOARD_CLEAR_TIMER: u64 = 13;
+
+use clap::Parser;
+
+#[derive(clap::Parser)]
+#[command(name = "radomsko", version = "0.2.2", about = "`pass` mimic")]
+struct Cli {
+    #[command(subcommand)]
+    subcommand: Subcommand,
+}
+
+#[derive(clap::Subcommand)]
+enum Subcommand {
+    Edit(EditArgs),
+    Find(FindArgs),
+    Show(ShowArgs),
+}
+
+#[derive(clap::Args)]
+struct EditArgs {
+    #[arg(help = "target")]
+    target: std::path::PathBuf,
+}
+
+#[derive(clap::Args)]
+struct FindArgs {
+    #[arg(help = "keyword")]
+    keyword: std::path::PathBuf,
+}
+
+#[derive(clap::Args)]
+struct ShowArgs {
+    #[arg(help = "(optional) target")]
+    target: Option<std::path::PathBuf>,
+    #[command(flatten)]
+    show_to: Option<ShowTo>,
+}
+
+#[derive(clap::Args)]
+#[group(required = false, multiple = false)]
+struct ShowTo {
+    #[arg(short, help = "copy to clipboard")]
+    clip: bool,
+    #[arg(short, help = "show QR code")]
+    qrcode: bool,
+}
 
 struct CommandRunner {
     password_store: PasswordStoreInterface,
@@ -99,68 +143,30 @@ impl CommandRunner {
 }
 
 pub fn main_impl() -> Result<(), RadomskoError> {
-    let matches = App::new("radomsko")
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .about("interacts with your password store")
-        .version("0.2.1")
-        .author("j39m")
-        .subcommand(
-            App::new("show")
-                .about("decrypts passwords (or shows subdirectories)")
-                .arg(Arg::new("target").help("optional: password or subdirectory"))
-                .arg(
-                    Arg::new("clip")
-                        .conflicts_with("qr")
-                        .help("sends cleartext to clipboard")
-                        .short('c'),
-                )
-                .arg(
-                    Arg::new("qr")
-                        .conflicts_with("clip")
-                        .help("displays cleartext as QR code (dangerous!)")
-                        .short('q'),
-                ),
-        )
-        .subcommand(
-            App::new("edit")
-                .about("edits passwords")
-                .arg(Arg::new("target").help("password to edit").required(true)),
-        )
-        .subcommand(
-            App::new("find")
-                .about("searches password store")
-                .arg(Arg::new("keyword").help("search term").required(true)),
-        )
-        .get_matches();
-
     let command_runner = CommandRunner::new()?;
-    match matches.subcommand_name() {
-        Some("show") => {
-            let submatches = matches.subcommand_matches("show").unwrap();
-            let dest = if submatches.is_present("clip") {
-                ShowDestination::Clip
-            } else if submatches.is_present("qr") {
-                ShowDestination::QrCode
-            } else {
-                ShowDestination::Stdout
+    let cli = Cli::parse();
+    match cli.subcommand {
+        Subcommand::Edit(args) => Ok(command_runner.edit(args.target.to_str().unwrap())?),
+        Subcommand::Find(args) => Ok(command_runner.find(args.keyword.to_str().unwrap())?),
+        Subcommand::Show(args) => {
+            let dest = match args.show_to {
+                Some(show_to) => {
+                    if show_to.clip {
+                        ShowDestination::Clip
+                    } else if show_to.qrcode {
+                        ShowDestination::QrCode
+                    } else {
+                        panic!("BUG: unhandled `ShowTo` arm")
+                    }
+                }
+                None => ShowDestination::Stdout,
             };
-            Ok(command_runner.show(submatches.value_of("target").unwrap_or(""), dest)?)
+            let target = match args.target {
+                Some(targ) => targ.to_str().unwrap().to_owned(),
+                None => String::new(),
+            };
+            Ok(command_runner.show(target.as_str(), dest)?)
         }
-        Some("edit") => Ok(command_runner.edit(
-            matches
-                .subcommand_matches("edit")
-                .unwrap()
-                .value_of("target")
-                .unwrap(),
-        )?),
-        Some("find") => Ok(command_runner.find(
-            matches
-                .subcommand_matches("find")
-                .unwrap()
-                .value_of("keyword")
-                .unwrap(),
-        )?),
-        _ => panic!("BUG: unhandled subcommand"),
     }
 }
 
