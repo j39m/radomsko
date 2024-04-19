@@ -2,7 +2,7 @@
 name = "radomsko"
 version = "0.1.0"
 authors = ["j39m"]
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "radomsko"
