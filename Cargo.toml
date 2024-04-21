@@ -1,6 +1,6 @@
 [package]
 name = "radomsko"
-version = "0.1.0"
+version = "0.2.2"
 authors = ["j39m"]
 edition = "2021"
 
@@ -19,4 +19,4 @@ walkdir = "2"
 
 [dependencies.clap]
 version = "4"
-features = [ "derive" ]
+features = [ "cargo", "derive" ]

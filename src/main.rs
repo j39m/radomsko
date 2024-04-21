@@ -15,7 +15,7 @@ const CLIPBOARD_CLEAR_TIMER: u64 = 13;
 use clap::Parser;
 
 #[derive(clap::Parser)]
-#[command(name = "radomsko", version = "0.2.2", about = "`pass` mimic")]
+#[command(name = "radomsko", version = clap::crate_version!(), about = "`pass` mimic")]
 struct Cli {
     #[command(subcommand)]
     subcommand: Subcommand,
