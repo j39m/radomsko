@@ -9,7 +9,6 @@ use crate::enums::RadomskoError;
 use crate::enums::ShowDestination;
 
 const DISPLAY: &'static str = "DISPLAY";
-const TARGET_WORKSPACE: &'static str = "Kos";
 
 fn gpg_decrypt_command(password: &Path) -> Exec {
     Exec::cmd("gpg")
@@ -110,9 +109,10 @@ pub fn encrypt_cleartext(cleartext: &Path) -> Result<(), RadomskoError> {
 }
 
 pub fn switch_workspace() -> Result<(), RadomskoError> {
-    let status = Exec::cmd("swaymsg")
-        .arg("workspace")
-        .arg(TARGET_WORKSPACE)
+    let status = Exec::cmd("niri")
+        .arg("msg")
+        .arg("action")
+        .arg("focus-monitor-up")
         .stdout(subprocess::NullFile)
         .stderr(subprocess::NullFile)
         .join()?;
